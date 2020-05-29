@@ -2,9 +2,12 @@ use crate::errors::*;
 use crate::models::*;
 use crate::traits::*;
 
+use hex::encode as hex_encode;
 use serde_json::Value;
 use reqwest::StatusCode;
 use reqwest::blocking::Response;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT, CONTENT_TYPE};
+use ring::hmac;
 
 const HOST: &str = "https://www.binancezh.com";
 
@@ -33,22 +36,45 @@ impl BinanceRest {
         self.handler(response)
     }
 
-    /*
-    pub fn post(&self, endpoint: &str) -> Result<String> {
-        let url: String = format!("{}{}", self.host, endpoint);
+    pub fn get_signed(&self, endpoint: &str, request: &str) -> Result<String> {
+        let url = self.sign(endpoint, request);
+        let client = reqwest::blocking::Client::new();
+        let resp = client
+            .get(url.as_str())
+            .headers(self.build_headers(true)?)
+            .send()?;
+        self.handler(resp)
+    }
+
+    pub fn post_signed(&self, endpoint: &str, request: &str) -> Result<String> {
+        let url = self.sign(endpoint, request);
         let client = reqwest::blocking::Client::new();
         let resp = client
             .post(url.as_str())
-            .headers(self.build_headers(false)?)
+            .headers(self.build_headers(true)?)
             .send()?;
         self.handler(resp)
-    }*/
+    }
 
-    //pub fn get_signed(&self, endpoint: &str, request: &str) -> Result<String>
+    fn sign(&self, endpoint: &str, request: &str) -> String {
+        let key = hmac::Key::new(hmac::HMAC_SHA256, self.secret_key.as_bytes());
+        let signature = hex_encode(hmac::sign(&key, request.as_bytes()).as_ref());
+        let body: String = format!("{}&signature={}", request, signature);
+        let url: String = format!("{}{}?{}", self.host, endpoint, body);
+        url
+    }
 
+    fn build_headers(&self, content_type: bool) -> Result<HeaderMap> {
+        let mut headers = HeaderMap::new();
+        headers.insert(USER_AGENT, HeaderValue::from_static("rsquant"));
+        if content_type {
+            headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"));
+        }
+        headers.insert(HeaderName::from_static("x-mbx-apikey"), HeaderValue::from_str(self.api_key.as_str())?);
+        Ok(headers)
+    }
 
-
-    fn handler(&self, mut resp: Response) -> Result<String> {
+    fn handler(&self, resp: Response) -> Result<String> {
         match resp.status() {
             StatusCode::OK => {
                 let body = resp.text()?;
@@ -142,13 +168,6 @@ impl Spot for BinanceRest {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    //#[test]
-    fn test_get() {
-        let api = BinanceRest::new(Some("test".to_string()), Some("test".to_string()), "https://www.binancezh.com".to_string());
-        let ret = api.get("/api/v3/exchangeInfo", "");
-        println!("{:?}", ret);
-    }
 
     #[test]
     fn test_get_orderbook() {
