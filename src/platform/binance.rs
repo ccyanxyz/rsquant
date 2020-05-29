@@ -1,6 +1,12 @@
 use crate::errors::*;
+use crate::models::*;
+use crate::traits::*;
+
+use serde_json::Value;
 use reqwest::StatusCode;
 use reqwest::blocking::Response;
+
+const HOST: &str = "https://www.binancezh.com";
 
 #[derive(Clone)]
 pub struct BinanceRest {
@@ -18,25 +24,29 @@ impl BinanceRest {
         }
     }
 
-    //pub fn get_signed(&self, endpoint: &str, request: &str) -> Result<String>
-
     pub fn get(&self, endpoint: &str, request: &str) -> Result<String> {
         let mut url: String = format!("{}{}", self.host, endpoint);
         if !request.is_empty() {
             url.push_str(format!("?{}", request).as_str());
         }
-
         let response = reqwest::blocking::get(url.as_str())?;
-
         self.handler(response)
     }
 
-    pub fn get_orderbook(&self, symbol: &str, depth: u8) -> Result<String> {
-        let uri = "/api/v3/depth";
-        let req_str = format!("symbol={}&limit={}", symbol, depth);
-        println!("req_str={:?}", req_str);
-        self.get(uri, &req_str)
-    }
+    /*
+    pub fn post(&self, endpoint: &str) -> Result<String> {
+        let url: String = format!("{}{}", self.host, endpoint);
+        let client = reqwest::blocking::Client::new();
+        let resp = client
+            .post(url.as_str())
+            .headers(self.build_headers(false)?)
+            .send()?;
+        self.handler(resp)
+    }*/
+
+    //pub fn get_signed(&self, endpoint: &str, request: &str) -> Result<String>
+
+
 
     fn handler(&self, mut resp: Response) -> Result<String> {
         match resp.status() {
@@ -55,8 +65,11 @@ impl BinanceRest {
             }
             StatusCode::BAD_REQUEST => {
                 let err: Value = resp.json()?;
-                let err_content: ExErrorInfo{ code: err["code"], msg: err["msg"] };
-                Err(ErrorKind::ExError(err).into())
+                let err_info = ExErrorInfo{
+                    code: err["code"].as_i64().unwrap_or(-1),
+                    msg: err["msg"].as_str().unwrap_or("unwrap msg failed").to_string(),
+                };
+                Err(ErrorKind::ExError(err_info).into())
             }
             s => {
                 bail!(format!("Received response: {:?}", s));
@@ -66,11 +79,63 @@ impl BinanceRest {
 }
 
 impl Spot for BinanceRest {
-    pub fn get_orderbook(&self, symbol: &str, depth: u8) -> Result<String> {
+    fn get_orderbook(&self, symbol: &str, depth: u8) -> Result<Orderbook> {
         let uri = "/api/v3/depth";
-        let req_str = format!("symbol={}&limit={}", symbol, depth);
-        println!("req_str={:?}", req_str);
-        self.get(uri, &req_str)
+        let params = format!("symbol={}&limit={}", symbol, depth);
+        let ret = self.get(uri, &params)?;
+        let val: Value = serde_json::from_str(&ret)?;
+        // TODO: faster way to do this?
+        let asks = val["asks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|ask| {
+                Ask {
+                    price: ask[0].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    amount: ask[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                }
+            })
+            .collect::<Vec<Ask>>();
+        let bids = val["bids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|bid| {
+                Bid {
+                    price: bid[0].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    amount: bid[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                }
+            })
+            .collect::<Vec<Bid>>();
+
+        Ok(Orderbook {
+            timestamp: val["lastUpdateId"].as_i64().unwrap_or(0) as u64,
+            asks: asks,
+            bids: bids,
+        })
+    }
+    
+    fn get_ticker(&self, symbol: &str) -> Result<Ticker> {
+        unimplemented!()
+    }
+    fn get_klines(&self, symbol: &str, period: u16, limit: u16) -> Result<Vec<Kline>> {
+        unimplemented!()
+    }
+
+    fn get_balance(&self) -> Result<Balance> {
+        unimplemented!()
+    }
+    fn create_order(&self, amount: f64, price: f64, action: Action, order_type: OrderType) -> Result<String> {
+        unimplemented!()
+    }
+    fn cancel(&self, id: &str) -> Result<bool> {
+        unimplemented!()
+    }
+    fn cancel_all(&self, symbol: &str) -> Result<bool> {
+        unimplemented!()
+    }
+    fn get_order(&self, id: &str) -> Result<Order> {
+        unimplemented!()
     }
 }
 

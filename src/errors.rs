@@ -1,8 +1,9 @@
 use serde_json::Value;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct ExErrorInfo {
-    pub code: i16,
+    pub code: i64,
     pub msg: String,
 }
 
