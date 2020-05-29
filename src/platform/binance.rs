@@ -5,18 +5,48 @@ use crate::utils::*;
 use crate::constant::*;
 
 use hex::encode as hex_encode;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use serde_json::Value;
 use reqwest::StatusCode;
 use reqwest::blocking::Response;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT, CONTENT_TYPE};
 use ring::hmac;
 
+lazy_static! {
+    static ref SPOT_URI: HashMap::<&'static str, &'static str> = {
+        let mut map = HashMap::new();
+        map.insert("get_orderbook", "/api/v3/depth");
+        map.insert("get_ticker", "/api/v3/ticker/bookTicker");
+        map.insert("get_kline", "/api/v3/klines");
+        map.insert("get_balance", "/api/v3/account");
+        map.insert("create_order", "/api/v3/order");
+        map.insert("cancel", "/api/v3/order");
+        map.insert("cancel_all", "/api/v3/openOrders");
+        map.insert("get_order", "/api/v3/order");
+        map.insert("get_open_orders", "/api/v3/openOrders");
+        map
+    };
+    static ref MARGIN_URI: HashMap::<&'static str, &'static str> = {
+        let mut map = HashMap::new();
+        map.insert("get_orderbook", "/api/v3/depth");
+        map.insert("get_ticker", "/api/v3/ticker/bookTicker");
+        map.insert("get_kline", "/api/v3/klines");
+        map.insert("get_balance", "/sapi/v1/margin/account");
+        map.insert("create_order", "/sapi/v1/margin/order");
+        map.insert("cancel", "/sapi/v1/margin/order");
+        map.insert("cancel_all", "/sapi/v1/margin/openOrders"); // maybe not exist
+        map.insert("get_order", "/sapi/v1/margin/order");
+        map.insert("get_open_orders", "/sapi/v1/margin/openOrders");
+        map
+    };
+}
+
 #[derive(Clone)]
 pub struct Binance {
     api_key: String,
     secret_key: String,
     host: String,
+    is_margin: bool,
 }
 
 impl Binance {
@@ -24,8 +54,17 @@ impl Binance {
         Binance {
             api_key: api_key.unwrap_or_else(|| "".into()),
             secret_key: secret_key.unwrap_or_else(|| "".into()),
-            host,
+            host: host,
+            is_margin: false,
         }
+    }
+
+    pub fn set_margin(&mut self) {
+        self.is_margin = true;
+    }
+
+    pub fn set_spot(&mut self) {
+        self.is_margin = false;
     }
 
     pub fn get(&self, endpoint: &str, request: &str) -> Result<String> {
@@ -134,7 +173,11 @@ impl Binance {
 
 impl Spot for Binance {
     fn get_orderbook(&self, symbol: &str, depth: u8) -> Result<Orderbook> {
-        let uri = "/api/v3/depth";
+        let uri = if self.is_margin {
+            MARGIN_URI.get("get_orderbook").unwrap()
+        } else {
+            SPOT_URI.get("get_orderbook").unwrap()
+        };
         let params = format!("symbol={}&limit={}", symbol, depth);
         let ret = self.get(uri, &params)?;
         let val: Value = serde_json::from_str(&ret)?;
@@ -170,7 +213,11 @@ impl Spot for Binance {
     }
     
     fn get_ticker(&self, symbol: &str) -> Result<Ticker> {
-        let uri = "/api/v3/ticker/bookTicker";
+        let uri = if self.is_margin {
+            MARGIN_URI.get("get_ticker").unwrap()
+        } else {
+            SPOT_URI.get("get_ticker").unwrap()
+        };
         let params = format!("symbol={}", symbol);
         let ret = self.get(uri, &params)?;
         let val: Value = serde_json::from_str(&ret)?;
@@ -189,7 +236,11 @@ impl Spot for Binance {
     }
 
     fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> Result<Vec<Kline>> {
-        let uri = "/api/v3/klines";
+        let uri = if self.is_margin {
+            MARGIN_URI.get("get_kline").unwrap()
+        } else {
+            SPOT_URI.get("get_kline").unwrap()
+        };
         let params = format!("symbol={}&interval={}&limit={}", symbol, period, limit);
         let ret = self.get(uri, &params)?;
         let val: Value = serde_json::from_str(&ret)?;
@@ -213,13 +264,22 @@ impl Spot for Binance {
     }
 
     fn get_balance(&self, asset: &str) -> Result<Balance> {
-        let uri = "/api/v3/account";
+        let uri = if self.is_margin {
+            MARGIN_URI.get("get_balance").unwrap()
+        } else {
+            SPOT_URI.get("get_balance").unwrap()
+        };
         let params: BTreeMap<String, String> = BTreeMap::new();
         let req = self.build_signed_request(params)?;
         let ret = self.get_signed(uri, &req)?;
         let val: Value = serde_json::from_str(&ret)?;
         
-        let balance = val["balances"]
+        let idx = if self.is_margin {
+            "userAssets"
+        } else {
+            "balances"
+        };
+        let balance = val[idx]
             .as_array()
             .unwrap()
             .iter()
@@ -236,7 +296,11 @@ impl Spot for Binance {
     }
 
     fn create_order(&self, symbol: &str, price: f64, amount: f64, action: &str, order_type: &str) -> Result<String> {
-        let uri = "/api/v3/order";
+        let uri = if self.is_margin {
+            MARGIN_URI.get("create_order").unwrap()
+        } else {
+            SPOT_URI.get("create_order").unwrap()
+        };
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("symbol".into(), symbol.into());
         params.insert("side".into(), action.into());
@@ -252,7 +316,11 @@ impl Spot for Binance {
     }
 
     fn cancel(&self, id: &str) -> Result<bool> {
-        let uri = "/api/v3/order";
+        let uri = if self.is_margin {
+            MARGIN_URI.get("cancel").unwrap()
+        } else {
+            SPOT_URI.get("cancel").unwrap()
+        };
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("orderId".into(), id.into());
         let req = self.build_signed_request(params)?;
@@ -261,7 +329,11 @@ impl Spot for Binance {
     }
 
     fn cancel_all(&self, symbol: &str) -> Result<bool> {
-        let uri = "/api/v3/openOrders";
+        let uri = if self.is_margin {
+            MARGIN_URI.get("cancel_all").unwrap()
+        } else {
+            SPOT_URI.get("cancel_all").unwrap()
+        };
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("symbol".into(), symbol.into());
         let req = self.build_signed_request(params)?;
@@ -270,7 +342,11 @@ impl Spot for Binance {
     }
 
     fn get_order(&self, id: &str) -> Result<Order> {
-        let uri = "/api/v3/order";
+        let uri = if self.is_margin {
+            MARGIN_URI.get("get_order").unwrap()
+        } else {
+            SPOT_URI.get("get_order").unwrap()
+        };
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("orderId".into(), id.into());
         let req = self.build_signed_request(params)?;
@@ -295,7 +371,11 @@ impl Spot for Binance {
     }
 
     fn get_open_orders(&self, symbol: &str) -> Result<Vec<Order>> {
-        let uri = "/api/v3/openOrders";
+        let uri = if self.is_margin {
+            MARGIN_URI.get("get_open_orders").unwrap()
+        } else {
+            SPOT_URI.get("get_open_orders").unwrap()
+        };
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("symbol".into(), symbol.into());
         let req = self.build_signed_request(params)?;
