@@ -66,6 +66,7 @@ pub struct Ask {
 
 #[derive(Debug)]
 pub struct Ticker {
+    pub symbol: String,
     pub bid: Bid,
     pub ask: Ask,
 }

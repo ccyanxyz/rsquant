@@ -11,7 +11,7 @@ pub trait Spot {
 
     fn get_orderbook(&self, symbol: &str, depth: u8) -> Result<Orderbook>;
     fn get_ticker(&self, symbol: &str) -> Result<Ticker>;
-    fn get_klines(&self, symbol: &str, period: u16, limit: u16) -> Result<Vec<Kline>>;
+    fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> Result<Vec<Kline>>;
 }
 
 pub trait Future {
@@ -24,5 +24,5 @@ pub trait Future {
 
     fn get_orderbook(&self, symbol: &str, depth: u8) -> Result<Orderbook>;
     fn get_ticker(&self, symbol: &str) -> Result<Ticker>;
-    fn get_klines(&self, symbol: &str, period: u16, limit: u16) -> Result<Vec<Kline>>;
+    fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> Result<Vec<Kline>>;
 }

@@ -142,10 +142,46 @@ impl Spot for BinanceRest {
     }
     
     fn get_ticker(&self, symbol: &str) -> Result<Ticker> {
-        unimplemented!()
+        let uri = "/api/v3/ticker/bookTicker";
+        let params = format!("symbol={}", symbol);
+        let ret = self.get(uri, &params)?;
+        let val: Value = serde_json::from_str(&ret)?;
+
+        Ok(Ticker {
+            symbol: val["symbol"].as_str().unwrap().into(),
+            bid: Bid {
+                price: val["bidPrice"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                amount: val["bidQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+            },
+            ask: Ask {
+                price: val["askPrice"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                amount: val["askQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+            }
+        })
     }
-    fn get_klines(&self, symbol: &str, period: u16, limit: u16) -> Result<Vec<Kline>> {
-        unimplemented!()
+
+    fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> Result<Vec<Kline>> {
+        let uri = "/api/v3/klines";
+        let params = format!("symbol={}&interval={}&limit={}", symbol, period, limit);
+        let ret = self.get(uri, &params)?;
+        let val: Value = serde_json::from_str(&ret)?;
+        let klines = val
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|kline| {
+                Kline {
+                    timestamp: kline[0].as_i64().unwrap_or(0) as u64,
+                    open: kline[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    high: kline[2].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    low: kline[3].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    close: kline[4].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    volume: kline[5].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                }
+            })
+            .collect::<Vec<Kline>>();
+
+        Ok(klines)
     }
 
     fn get_balance(&self) -> Result<Balance> {
@@ -171,8 +207,23 @@ mod test {
 
     #[test]
     fn test_get_orderbook() {
-        let api = BinanceRest::new(Some("test".to_string()), Some("test".to_string()), "https://www.binancezh.com".to_string());
+        let api = BinanceRest::new(None, None, "https://www.binancezh.com".to_string());
         let ret = api.get_orderbook("BTCUSDT", 10);
         println!("{:?}", ret);
+    }
+
+    #[test]
+    fn test_get_ticker() {
+        let api = BinanceRest::new(None, None, "https://www.binancezh.com".to_string());
+        let ret = api.get_ticker("BTCUSDT");
+        println!("{:?}", ret);
+    }
+
+    #[test]
+    fn test_get_kline() {
+        let api = BinanceRest::new(None, None, "https://www.binancezh.com".to_string());
+        let ret = api.get_kline("BTCUSDT", "1m", 500);
+        println!("{:?}", ret);
+        println!("{:?}", ret.unwrap().len());
     }
 }
