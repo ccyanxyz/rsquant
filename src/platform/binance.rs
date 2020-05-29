@@ -1,26 +1,27 @@
 use crate::errors::*;
 use crate::models::*;
 use crate::traits::*;
+use crate::utils::*;
+use crate::constant::*;
 
 use hex::encode as hex_encode;
+use std::collections::BTreeMap;
 use serde_json::Value;
 use reqwest::StatusCode;
 use reqwest::blocking::Response;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT, CONTENT_TYPE};
 use ring::hmac;
 
-const HOST: &str = "https://www.binancezh.com";
-
 #[derive(Clone)]
-pub struct BinanceRest {
+pub struct Binance {
     api_key: String,
     secret_key: String,
     host: String,
 }
 
-impl BinanceRest {
+impl Binance {
     pub fn new(api_key: Option<String>, secret_key: Option<String>, host: String) -> Self {
-        BinanceRest {
+        Binance {
             api_key: api_key.unwrap_or_else(|| "".into()),
             secret_key: secret_key.unwrap_or_else(|| "".into()),
             host,
@@ -56,12 +57,39 @@ impl BinanceRest {
         self.handler(resp)
     }
 
+    pub fn delete_signed(&self, endpoint: &str, request: &str) -> Result<String> {
+        let url = self.sign(endpoint, request);
+        let client = reqwest::blocking::Client::new();
+        let resp = client
+            .delete(url.as_str())
+            .headers(self.build_headers(true)?)
+            .send()?;
+        self.handler(resp)
+    }
+
     fn sign(&self, endpoint: &str, request: &str) -> String {
         let key = hmac::Key::new(hmac::HMAC_SHA256, self.secret_key.as_bytes());
         let signature = hex_encode(hmac::sign(&key, request.as_bytes()).as_ref());
         let body: String = format!("{}&signature={}", request, signature);
         let url: String = format!("{}{}?{}", self.host, endpoint, body);
         url
+    }
+
+    fn build_signed_request(&self, mut params: BTreeMap<String, String>) -> Result<String> {
+        params.insert("recvWindow".into(), "5000".to_string());
+
+        if let Ok(ts) = get_timestamp() {
+            params.insert("timestamp".into(), ts.to_string());
+            let mut req = String::new();
+            for (k, v) in &params {
+                let param = format!("{}={}&", k, v);
+                req.push_str(param.as_ref());
+            }
+            req.pop();
+            Ok(req)
+        } else {
+            bail!("Failed to get timestamp")
+        }
     }
 
     fn build_headers(&self, content_type: bool) -> Result<HeaderMap> {
@@ -104,7 +132,7 @@ impl BinanceRest {
     }
 }
 
-impl Spot for BinanceRest {
+impl Spot for Binance {
     fn get_orderbook(&self, symbol: &str, depth: u8) -> Result<Orderbook> {
         let uri = "/api/v3/depth";
         let params = format!("symbol={}&limit={}", symbol, depth);
@@ -184,20 +212,119 @@ impl Spot for BinanceRest {
         Ok(klines)
     }
 
-    fn get_balance(&self) -> Result<Balance> {
-        unimplemented!()
+    fn get_balance(&self, asset: &str) -> Result<Balance> {
+        let uri = "/api/v3/account";
+        let params: BTreeMap<String, String> = BTreeMap::new();
+        let req = self.build_signed_request(params)?;
+        let ret = self.get_signed(uri, &req)?;
+        let val: Value = serde_json::from_str(&ret)?;
+        
+        let balance = val["balances"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|balance| {
+                balance["asset"].as_str().unwrap() == asset.to_string()
+            });
+        let balance = balance.unwrap();
+
+        Ok(Balance {
+            asset: asset.into(),
+            free: balance["free"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+            locked: balance["locked"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+        })
     }
-    fn create_order(&self, amount: f64, price: f64, action: Action, order_type: OrderType) -> Result<String> {
-        unimplemented!()
+
+    fn create_order(&self, symbol: &str, price: f64, amount: f64, action: &str, order_type: &str) -> Result<String> {
+        let uri = "/api/v3/order";
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("symbol".into(), symbol.into());
+        params.insert("side".into(), action.into());
+        params.insert("type".into(), order_type.into());
+        params.insert("timeInForce".into(), "GTC".into());
+        params.insert("quantity".into(), amount.to_string());
+        params.insert("price".into(), price.to_string());
+        let req = self.build_signed_request(params)?;
+        let ret = self.post_signed(uri, &req)?;
+        let val: Value = serde_json::from_str(&ret)?;
+
+        Ok(val["orderId"].as_i64().unwrap().to_string())
     }
+
     fn cancel(&self, id: &str) -> Result<bool> {
-        unimplemented!()
+        let uri = "/api/v3/order";
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("orderId".into(), id.into());
+        let req = self.build_signed_request(params)?;
+        let _ret = self.delete_signed(uri, &req)?;
+        Ok(true)
     }
+
     fn cancel_all(&self, symbol: &str) -> Result<bool> {
-        unimplemented!()
+        let uri = "/api/v3/openOrders";
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("symbol".into(), symbol.into());
+        let req = self.build_signed_request(params)?;
+        let _ret = self.delete_signed(uri, &req)?;
+        Ok(true)
     }
+
     fn get_order(&self, id: &str) -> Result<Order> {
-        unimplemented!()
+        let uri = "/api/v3/order";
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("orderId".into(), id.into());
+        let req = self.build_signed_request(params)?;
+        let ret = self.get_signed(uri, &req)?;
+        let val: Value = serde_json::from_str(&ret)?;
+
+        let status: u8 = match val["status"].as_str() {
+            Some("NEW") => ORDER_STATUS_SUBMITTED,
+            Some("FILLED") => ORDER_STATUS_FILLED,
+            Some("PARTIALLY_FILLED") => ORDER_STATUS_PART_FILLED,
+            Some("CANCELLED") => ORDER_STATUS_CANCELLED,
+            _ => ORDER_STATUS_FAILED,
+        };
+        Ok(Order {
+            symbol: val["symbol"].as_str().unwrap().into(),
+            order_id: val["orderId"].as_i64().unwrap().to_string(),
+            price: val["price"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+            amount: val["origQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+            filled: val["executedQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+            status: status,
+        })
+    }
+
+    fn get_open_orders(&self, symbol: &str) -> Result<Vec<Order>> {
+        let uri = "/api/v3/openOrders";
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("symbol".into(), symbol.into());
+        let req = self.build_signed_request(params)?;
+        let ret = self.get_signed(uri, &req)?;
+        let val: Value = serde_json::from_str(&ret)?;
+
+        let orders = val
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|order| {
+                let status: u8 = match val["status"].as_str() {
+                    Some("NEW") => ORDER_STATUS_SUBMITTED,
+                    Some("FILLED") => ORDER_STATUS_FILLED,
+                    Some("PARTIALLY_FILLED") => ORDER_STATUS_PART_FILLED,
+                    Some("CANCELLED") => ORDER_STATUS_CANCELLED,
+                    _ => ORDER_STATUS_FAILED,
+                };
+                Order {
+                    symbol: order["symbol"].as_str().unwrap().into(),
+                    order_id: order["orderId"].as_i64().unwrap().to_string(),
+                    price: order["price"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    amount: order["origQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    filled: order["executedQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    status: status,
+                }
+            })
+            .collect::<Vec<Order>>();
+        Ok(orders)
     }
 }
 
@@ -205,25 +332,43 @@ impl Spot for BinanceRest {
 mod test {
     use super::*;
 
-    #[test]
+    const API_KEY: &'static str = "N9QAtGjFuNXDAnvMlidLzfvGargt54mKQuQbzyafO2hg5Hr8YNHV1e2Jfavi44nK";
+    const SECRET_KEY: &'static str = "lCuul7mVApKczbGJBrAgqEIWTWwbQ1BTMBPJyvK19q2BNmlsd5718cAWWByNuY5N";
+    const HOST: &'static str = "https://api.binance.com";
+
+    //#[test]
     fn test_get_orderbook() {
-        let api = BinanceRest::new(None, None, "https://www.binancezh.com".to_string());
+        let api = Binance::new(None, None, "https://www.binancezh.com".to_string());
         let ret = api.get_orderbook("BTCUSDT", 10);
         println!("{:?}", ret);
     }
 
-    #[test]
+    //#[test]
     fn test_get_ticker() {
-        let api = BinanceRest::new(None, None, "https://www.binancezh.com".to_string());
+        let api = Binance::new(None, None, "https://www.binancezh.com".to_string());
         let ret = api.get_ticker("BTCUSDT");
         println!("{:?}", ret);
     }
 
-    #[test]
+    //#[test]
     fn test_get_kline() {
-        let api = BinanceRest::new(None, None, "https://www.binancezh.com".to_string());
+        let api = Binance::new(None, None, "https://www.binancezh.com".to_string());
         let ret = api.get_kline("BTCUSDT", "1m", 500);
         println!("{:?}", ret);
         println!("{:?}", ret.unwrap().len());
+    }
+
+    #[test]
+    fn test_get_balance() {
+        let api = Binance::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
+        let ret = api.get_balance("BTC");
+        println!("{:?}", ret);
+    }
+
+    #[test]
+    fn test_create_order() {
+        let api = Binance::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
+        let ret = api.create_order("BTCUSDT".into(), 9300.0, 0.01, "BUY", "LIMIT");
+        println!("{:?}", ret);
     }
 }

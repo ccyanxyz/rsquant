@@ -1,25 +1,3 @@
-
-#[derive(Debug)]
-pub enum OrderStatus {
-    Cancelled,
-    Filled,
-    PartialFilled,
-    Submitted,
-    Failed,
-}
-
-#[derive(Debug)]
-pub enum OrderType {
-    Limit,
-    Market,
-}
-
-#[derive(Debug)]
-pub enum Action {
-    Buy,
-    Sell,
-}
-
 // for futures
 #[derive(Debug)]
 pub enum PositionType {
@@ -42,7 +20,7 @@ pub struct Order {
     pub amount: f64,
     pub price: f64,
     pub filled: f64,
-    pub status: OrderStatus,
+    pub status: u8,
 }
 
 #[derive(Debug)]
