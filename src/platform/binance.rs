@@ -76,6 +76,43 @@ impl Binance {
         self.handler(response)
     }
 
+    pub fn post(&self, endpoint: &str) -> Result<String> {
+        let mut url: String = format!("{}{}", self.host, endpoint);
+        let client = reqwest::blocking::Client::new();
+        let resp = client
+            .post(url.as_str())
+            .headers(self.build_headers(false)?)
+            .send()?;
+
+        self.handler(resp)
+    }
+
+    pub fn put(&self, endpoint: &str, key: &str) -> Result<String> {
+        let url: String = format!("{}{}", self.host, endpoint);
+        let data: String = format!("listenKey={}", key);
+
+        let client = reqwest::blocking::Client::new();
+        let resp = client
+            .put(url.as_str())
+            .headers(self.build_headers(false)?)
+            .body(data)
+            .send()?;
+        self.handler(resp)
+    }
+
+    pub fn delete(&self, endpoint: &str, key: &str) -> Result<String> {
+        let url: String = format!("{}{}", self.host, endpoint);
+        let data: String = format!("listenKey={}", key);
+
+        let client = reqwest::blocking::Client::new();
+        let resp = client
+            .delete(url.as_str())
+            .headers(self.build_headers(false)?)
+            .body(data)
+            .send()?;
+        self.handler(resp)
+    }
+
     pub fn get_signed(&self, endpoint: &str, request: &str) -> Result<String> {
         let url = self.sign(endpoint, request);
         let client = reqwest::blocking::Client::new();
