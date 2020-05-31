@@ -1,4 +1,3 @@
-
 pub const ORDER_ACTION_BUY: &'static str = "BUY";
 pub const ORDER_ACTION_SELL: &'static str = "SELL";
 

@@ -1,4 +1,3 @@
-
 extern crate serde;
 extern crate serde_json;
 
@@ -9,9 +8,9 @@ extern crate error_chain;
 #[macro_use]
 extern crate lazy_static;
 
-mod traits;
-mod errors;
-mod utils;
 pub mod constant;
+mod errors;
 pub mod models;
 pub mod platform;
+mod traits;
+mod utils;

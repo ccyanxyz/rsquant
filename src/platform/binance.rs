@@ -1,16 +1,16 @@
+use crate::constant::*;
 use crate::errors::*;
 use crate::models::*;
 use crate::traits::*;
 use crate::utils::*;
-use crate::constant::*;
 
 use hex::encode as hex_encode;
-use std::collections::{BTreeMap, HashMap};
-use serde_json::Value;
-use reqwest::StatusCode;
 use reqwest::blocking::Response;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT, CONTENT_TYPE};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE, USER_AGENT};
+use reqwest::StatusCode;
 use ring::hmac;
+use serde_json::Value;
+use std::collections::{BTreeMap, HashMap};
 
 lazy_static! {
     static ref SPOT_URI: HashMap::<&'static str, &'static str> = {
@@ -135,9 +135,15 @@ impl Binance {
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static("rsquant"));
         if content_type {
-            headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"));
+            headers.insert(
+                CONTENT_TYPE,
+                HeaderValue::from_static("application/x-www-form-urlencoded"),
+            );
         }
-        headers.insert(HeaderName::from_static("x-mbx-apikey"), HeaderValue::from_str(self.api_key.as_str())?);
+        headers.insert(
+            HeaderName::from_static("x-mbx-apikey"),
+            HeaderValue::from_str(self.api_key.as_str())?,
+        );
         Ok(headers)
     }
 
@@ -158,9 +164,12 @@ impl Binance {
             }
             StatusCode::BAD_REQUEST => {
                 let err: Value = resp.json()?;
-                let err_info = ExErrorInfo{
+                let err_info = ExErrorInfo {
                     code: err["code"].as_i64().unwrap_or(-1),
-                    msg: err["msg"].as_str().unwrap_or("unwrap msg failed").to_string(),
+                    msg: err["msg"]
+                        .as_str()
+                        .unwrap_or("unwrap msg failed")
+                        .to_string(),
                 };
                 Err(ErrorKind::ExError(err_info).into())
             }
@@ -186,22 +195,18 @@ impl Spot for Binance {
             .as_array()
             .unwrap()
             .iter()
-            .map(|ask| {
-                Ask {
-                    price: ask[0].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                    amount: ask[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                }
+            .map(|ask| Ask {
+                price: ask[0].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                amount: ask[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
             })
             .collect::<Vec<Ask>>();
         let bids = val["bids"]
             .as_array()
             .unwrap()
             .iter()
-            .map(|bid| {
-                Bid {
-                    price: bid[0].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                    amount: bid[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                }
+            .map(|bid| Bid {
+                price: bid[0].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                amount: bid[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
             })
             .collect::<Vec<Bid>>();
 
@@ -211,7 +216,7 @@ impl Spot for Binance {
             bids: bids,
         })
     }
-    
+
     fn get_ticker(&self, symbol: &str) -> Result<Ticker> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_ticker").unwrap()
@@ -225,13 +230,29 @@ impl Spot for Binance {
         Ok(Ticker {
             symbol: val["symbol"].as_str().unwrap().into(),
             bid: Bid {
-                price: val["bidPrice"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                amount: val["bidQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                price: val["bidPrice"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap_or(0.0),
+                amount: val["bidQty"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap_or(0.0),
             },
             ask: Ask {
-                price: val["askPrice"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                amount: val["askQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-            }
+                price: val["askPrice"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap_or(0.0),
+                amount: val["askQty"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap_or(0.0),
+            },
         })
     }
 
@@ -248,15 +269,13 @@ impl Spot for Binance {
             .as_array()
             .unwrap()
             .iter()
-            .map(|kline| {
-                Kline {
-                    timestamp: kline[0].as_i64().unwrap_or(0) as u64,
-                    open: kline[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                    high: kline[2].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                    low: kline[3].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                    close: kline[4].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                    volume: kline[5].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                }
+            .map(|kline| Kline {
+                timestamp: kline[0].as_i64().unwrap_or(0) as u64,
+                open: kline[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                high: kline[2].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                low: kline[3].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                close: kline[4].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                volume: kline[5].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
             })
             .collect::<Vec<Kline>>();
 
@@ -273,7 +292,7 @@ impl Spot for Binance {
         let req = self.build_signed_request(params)?;
         let ret = self.get_signed(uri, &req)?;
         let val: Value = serde_json::from_str(&ret)?;
-        
+
         let idx = if self.is_margin {
             "userAssets"
         } else {
@@ -283,19 +302,32 @@ impl Spot for Binance {
             .as_array()
             .unwrap()
             .iter()
-            .find(|balance| {
-                balance["asset"].as_str().unwrap() == asset.to_string()
-            });
+            .find(|balance| balance["asset"].as_str().unwrap() == asset.to_string());
         let balance = balance.unwrap();
 
         Ok(Balance {
             asset: asset.into(),
-            free: balance["free"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-            locked: balance["locked"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+            free: balance["free"]
+                .as_str()
+                .unwrap()
+                .parse::<f64>()
+                .unwrap_or(0.0),
+            locked: balance["locked"]
+                .as_str()
+                .unwrap()
+                .parse::<f64>()
+                .unwrap_or(0.0),
         })
     }
 
-    fn create_order(&self, symbol: &str, price: f64, amount: f64, action: &str, order_type: &str) -> Result<String> {
+    fn create_order(
+        &self,
+        symbol: &str,
+        price: f64,
+        amount: f64,
+        action: &str,
+        order_type: &str,
+    ) -> Result<String> {
         let uri = if self.is_margin {
             MARGIN_URI.get("create_order").unwrap()
         } else {
@@ -364,8 +396,16 @@ impl Spot for Binance {
             symbol: val["symbol"].as_str().unwrap().into(),
             order_id: val["orderId"].as_i64().unwrap().to_string(),
             price: val["price"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-            amount: val["origQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-            filled: val["executedQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+            amount: val["origQty"]
+                .as_str()
+                .unwrap()
+                .parse::<f64>()
+                .unwrap_or(0.0),
+            filled: val["executedQty"]
+                .as_str()
+                .unwrap()
+                .parse::<f64>()
+                .unwrap_or(0.0),
             status: status,
         })
     }
@@ -397,9 +437,21 @@ impl Spot for Binance {
                 Order {
                     symbol: order["symbol"].as_str().unwrap().into(),
                     order_id: order["orderId"].as_i64().unwrap().to_string(),
-                    price: order["price"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                    amount: order["origQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                    filled: order["executedQty"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    price: order["price"]
+                        .as_str()
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap_or(0.0),
+                    amount: order["origQty"]
+                        .as_str()
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap_or(0.0),
+                    filled: order["executedQty"]
+                        .as_str()
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap_or(0.0),
                     status: status,
                 }
             })
@@ -412,8 +464,10 @@ impl Spot for Binance {
 mod test {
     use super::*;
 
-    const API_KEY: &'static str = "N9QAtGjFuNXDAnvMlidLzfvGargt54mKQuQbzyafO2hg5Hr8YNHV1e2Jfavi44nK";
-    const SECRET_KEY: &'static str = "lCuul7mVApKczbGJBrAgqEIWTWwbQ1BTMBPJyvK19q2BNmlsd5718cAWWByNuY5N";
+    const API_KEY: &'static str =
+        "N9QAtGjFuNXDAnvMlidLzfvGargt54mKQuQbzyafO2hg5Hr8YNHV1e2Jfavi44nK";
+    const SECRET_KEY: &'static str =
+        "lCuul7mVApKczbGJBrAgqEIWTWwbQ1BTMBPJyvK19q2BNmlsd5718cAWWByNuY5N";
     const HOST: &'static str = "https://api.binance.com";
 
     //#[test]

@@ -9,7 +9,7 @@ pub enum PositionType {
 #[derive(Debug)]
 pub struct Balance {
     pub asset: String,
-    pub free: f64, 
+    pub free: f64,
     pub locked: f64,
 }
 
