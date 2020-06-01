@@ -12,5 +12,5 @@ pub mod constant;
 mod errors;
 pub mod models;
 pub mod platform;
-mod traits;
+pub mod traits;
 mod utils;

@@ -77,7 +77,7 @@ impl Binance {
     }
 
     pub fn post(&self, endpoint: &str) -> Result<String> {
-        let mut url: String = format!("{}{}", self.host, endpoint);
+        let url: String = format!("{}{}", self.host, endpoint);
         let client = reqwest::blocking::Client::new();
         let resp = client
             .post(url.as_str())
