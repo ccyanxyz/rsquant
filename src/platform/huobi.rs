@@ -15,9 +15,9 @@ use std::collections::{BTreeMap, HashMap};
 lazy_static! {
     static ref SPOT_URI: HashMap::<&'static str, &'static str> = {
         let mut map = HashMap::new();
-        map.insert("get_orderbook", "/api/v3/depth");
-        map.insert("get_ticker", "/api/v3/ticker/bookTicker");
-        map.insert("get_kline", "/api/v3/klines");
+        map.insert("get_orderbook", "/market/depth");
+        map.insert("get_ticker", "/market/detail/merged");
+        map.insert("get_kline", "/market/history/kline");
         map.insert("get_balance", "/api/v3/account");
         map.insert("create_order", "/api/v3/order");
         map.insert("cancel", "/api/v3/order");
@@ -42,16 +42,16 @@ lazy_static! {
 }
 
 #[derive(Clone)]
-pub struct Binance {
+pub struct Huobi {
     api_key: String,
     secret_key: String,
     host: String,
     is_margin: bool,
 }
 
-impl Binance {
+impl Huobi {
     pub fn new(api_key: Option<String>, secret_key: Option<String>, host: String) -> Self {
-        Binance {
+        Huobi {
             api_key: api_key.unwrap_or_else(|| "".into()),
             secret_key: secret_key.unwrap_or_else(|| "".into()),
             host: host,
@@ -87,32 +87,6 @@ impl Binance {
         self.handler(resp)
     }
 
-    pub fn put(&self, endpoint: &str, key: &str) -> Result<String> {
-        let url: String = format!("{}{}", self.host, endpoint);
-        let data: String = format!("listenKey={}", key);
-
-        let client = reqwest::blocking::Client::new();
-        let resp = client
-            .put(url.as_str())
-            .headers(self.build_headers(false)?)
-            .body(data)
-            .send()?;
-        self.handler(resp)
-    }
-
-    pub fn delete(&self, endpoint: &str, key: &str) -> Result<String> {
-        let url: String = format!("{}{}", self.host, endpoint);
-        let data: String = format!("listenKey={}", key);
-
-        let client = reqwest::blocking::Client::new();
-        let resp = client
-            .delete(url.as_str())
-            .headers(self.build_headers(false)?)
-            .body(data)
-            .send()?;
-        self.handler(resp)
-    }
-
     pub fn get_signed(&self, endpoint: &str, request: &str) -> Result<String> {
         let url = self.sign(endpoint, request);
         let client = reqwest::blocking::Client::new();
@@ -128,16 +102,6 @@ impl Binance {
         let client = reqwest::blocking::Client::new();
         let resp = client
             .post(url.as_str())
-            .headers(self.build_headers(true)?)
-            .send()?;
-        self.handler(resp)
-    }
-
-    pub fn delete_signed(&self, endpoint: &str, request: &str) -> Result<String> {
-        let url = self.sign(endpoint, request);
-        let client = reqwest::blocking::Client::new();
-        let resp = client
-            .delete(url.as_str())
             .headers(self.build_headers(true)?)
             .send()?;
         self.handler(resp)
@@ -217,38 +181,39 @@ impl Binance {
     }
 }
 
-impl Spot for Binance {
+impl Spot for Huobi {
     fn get_orderbook(&self, symbol: &str, depth: u8) -> Result<Orderbook> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_orderbook").unwrap()
         } else {
             SPOT_URI.get("get_orderbook").unwrap()
         };
-        let params = format!("symbol={}&limit={}", symbol, depth);
+        let symbol = symbol.to_lowercase();
+        let params = format!("symbol={}&depth={}&type=step0", symbol, depth);
         let ret = self.get(uri, &params)?;
         let val: Value = serde_json::from_str(&ret)?;
         // TODO: faster way to do this?
-        let asks = val["asks"]
+        let asks = val["tick"]["asks"]
             .as_array()
             .unwrap()
             .iter()
             .map(|ask| Ask {
-                price: ask[0].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                amount: ask[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                price: ask[0].as_f64().unwrap_or(0.0),
+                amount: ask[1].as_f64().unwrap_or(0.0),
             })
             .collect::<Vec<Ask>>();
-        let bids = val["bids"]
+        let bids = val["tick"]["bids"]
             .as_array()
             .unwrap()
             .iter()
             .map(|bid| Bid {
-                price: bid[0].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                amount: bid[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                price: bid[0].as_f64().unwrap_or(0.0),
+                amount: bid[1].as_f64().unwrap_or(0.0),
             })
             .collect::<Vec<Bid>>();
 
         Ok(Orderbook {
-            timestamp: val["lastUpdateId"].as_i64().unwrap_or(0) as u64,
+            timestamp: val["ts"].as_i64().unwrap_or(0) as u64,
             asks: asks,
             bids: bids,
         })
@@ -260,35 +225,19 @@ impl Spot for Binance {
         } else {
             SPOT_URI.get("get_ticker").unwrap()
         };
-        let params = format!("symbol={}", symbol);
+        let params = format!("symbol={}", symbol.to_lowercase());
         let ret = self.get(uri, &params)?;
         let val: Value = serde_json::from_str(&ret)?;
 
         Ok(Ticker {
-            symbol: val["symbol"].as_str().unwrap().into(),
+            symbol: symbol.into(),
             bid: Bid {
-                price: val["bidPrice"]
-                    .as_str()
-                    .unwrap()
-                    .parse::<f64>()
-                    .unwrap_or(0.0),
-                amount: val["bidQty"]
-                    .as_str()
-                    .unwrap()
-                    .parse::<f64>()
-                    .unwrap_or(0.0),
+                price: val["tick"]["bid"][0].as_f64().unwrap_or(0.0),
+                amount: val["tick"]["bid"][1].as_f64().unwrap_or(0.0),
             },
             ask: Ask {
-                price: val["askPrice"]
-                    .as_str()
-                    .unwrap()
-                    .parse::<f64>()
-                    .unwrap_or(0.0),
-                amount: val["askQty"]
-                    .as_str()
-                    .unwrap()
-                    .parse::<f64>()
-                    .unwrap_or(0.0),
+                price: val["tick"]["ask"][0].as_f64().unwrap_or(0.0),
+                amount: val["tick"]["ask"][1].as_f64().unwrap_or(0.0),
             },
         })
     }
@@ -299,20 +248,20 @@ impl Spot for Binance {
         } else {
             SPOT_URI.get("get_kline").unwrap()
         };
-        let params = format!("symbol={}&interval={}&limit={}", symbol, period, limit);
+        let params = format!("symbol={}&period={}&size={}", symbol.to_lowercase(), period, limit);
         let ret = self.get(uri, &params)?;
         let val: Value = serde_json::from_str(&ret)?;
-        let klines = val
+        let klines = val["data"]
             .as_array()
             .unwrap()
             .iter()
             .map(|kline| Kline {
-                timestamp: kline[0].as_i64().unwrap_or(0) as u64,
-                open: kline[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                high: kline[2].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                low: kline[3].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                close: kline[4].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                volume: kline[5].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                timestamp: kline["id"].as_i64().unwrap_or(0) as u64,
+                open: kline["open"].as_f64().unwrap_or(0.0),
+                high: kline["high"].as_f64().unwrap_or(0.0),
+                low: kline["low"].as_f64().unwrap_or(0.0),
+                close: kline["close"].as_f64().unwrap_or(0.0),
+                volume: kline["vol"].as_f64().unwrap_or(0.0),
             })
             .collect::<Vec<Kline>>();
 
@@ -385,29 +334,11 @@ impl Spot for Binance {
     }
 
     fn cancel(&self, id: &str) -> Result<bool> {
-        let uri = if self.is_margin {
-            MARGIN_URI.get("cancel").unwrap()
-        } else {
-            SPOT_URI.get("cancel").unwrap()
-        };
-        let mut params: BTreeMap<String, String> = BTreeMap::new();
-        params.insert("orderId".into(), id.into());
-        let req = self.build_signed_request(params)?;
-        let _ret = self.delete_signed(uri, &req)?;
-        Ok(true)
+        unimplemented!()
     }
 
     fn cancel_all(&self, symbol: &str) -> Result<bool> {
-        let uri = if self.is_margin {
-            MARGIN_URI.get("cancel_all").unwrap()
-        } else {
-            SPOT_URI.get("cancel_all").unwrap()
-        };
-        let mut params: BTreeMap<String, String> = BTreeMap::new();
-        params.insert("symbol".into(), symbol.into());
-        let req = self.build_signed_request(params)?;
-        let _ret = self.delete_signed(uri, &req)?;
-        Ok(true)
+        unimplemented!()
     }
 
     fn get_order(&self, id: &str) -> Result<Order> {
@@ -501,45 +432,26 @@ impl Spot for Binance {
 mod test {
     use super::*;
 
-    const API_KEY: &'static str =
-        "N9QAtGjFuNXDAnvMlidLzfvGargt54mKQuQbzyafO2hg5Hr8YNHV1e2Jfavi44nK";
-    const SECRET_KEY: &'static str =
-        "lCuul7mVApKczbGJBrAgqEIWTWwbQ1BTMBPJyvK19q2BNmlsd5718cAWWByNuY5N";
-    const HOST: &'static str = "https://api.binance.com";
+    const HOST: &'static str = "https://api.huobi.pro";
 
-    //#[test]
+    #[test]
     fn test_get_orderbook() {
-        let api = Binance::new(None, None, "https://www.binancezh.com".to_string());
+        let api = Huobi::new(None, None, HOST.into());
         let ret = api.get_orderbook("BTCUSDT", 10);
         println!("{:?}", ret);
     }
 
-    //#[test]
+    #[test]
     fn test_get_ticker() {
-        let api = Binance::new(None, None, "https://www.binancezh.com".to_string());
+        let api = Huobi::new(None, None, HOST.into());
         let ret = api.get_ticker("BTCUSDT");
         println!("{:?}", ret);
     }
 
-    //#[test]
+    #[test]
     fn test_get_kline() {
-        let api = Binance::new(None, None, "https://www.binancezh.com".to_string());
-        let ret = api.get_kline("BTCUSDT", "1m", 500);
-        println!("{:?}", ret);
-        println!("{:?}", ret.unwrap().len());
-    }
-
-    //#[test]
-    fn test_get_balance() {
-        let api = Binance::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
-        let ret = api.get_balance("BTC");
-        println!("{:?}", ret);
-    }
-
-    //#[test]
-    fn test_create_order() {
-        let api = Binance::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
-        let ret = api.create_order("BTCUSDT".into(), 9300.0, 0.01, "BUY", "LIMIT");
+        let api = Huobi::new(None, None, HOST.into());
+        let ret = api.get_kline("BTCUSDT", "15min", 10);
         println!("{:?}", ret);
     }
 }
