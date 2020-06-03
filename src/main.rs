@@ -1,6 +1,6 @@
-use std::env;
-use rsquant::traits::Spot;
 use rsquant::platform::binance::Binance;
+use rsquant::traits::Spot;
+use std::env;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

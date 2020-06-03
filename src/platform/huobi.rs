@@ -4,7 +4,7 @@ use crate::models::*;
 use crate::traits::*;
 use crate::utils::*;
 
-use hex::encode as hex_encode;
+use base64::encode;
 use reqwest::blocking::Response;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE, USER_AGENT};
 use reqwest::StatusCode;
@@ -18,7 +18,8 @@ lazy_static! {
         map.insert("get_orderbook", "/market/depth");
         map.insert("get_ticker", "/market/detail/merged");
         map.insert("get_kline", "/market/history/kline");
-        map.insert("get_balance", "/api/v3/account");
+        map.insert("get_balance", "/v1/account/accounts/account_id/balance");
+
         map.insert("create_order", "/api/v3/order");
         map.insert("cancel", "/api/v3/order");
         map.insert("cancel_all", "/api/v3/openOrders");
@@ -28,10 +29,11 @@ lazy_static! {
     };
     static ref MARGIN_URI: HashMap::<&'static str, &'static str> = {
         let mut map = HashMap::new();
-        map.insert("get_orderbook", "/api/v3/depth");
-        map.insert("get_ticker", "/api/v3/ticker/bookTicker");
-        map.insert("get_kline", "/api/v3/klines");
-        map.insert("get_balance", "/sapi/v1/margin/account");
+        map.insert("get_orderbook", "/market/depth");
+        map.insert("get_ticker", "/market/detail/merged");
+        map.insert("get_kline", "/market/history/kline");
+        map.insert("get_balance", "/v1/account/accounts/account_id/balance");
+
         map.insert("create_order", "/sapi/v1/margin/order");
         map.insert("cancel", "/sapi/v1/margin/order");
         map.insert("cancel_all", "/sapi/v1/margin/openOrders"); // maybe not exist
@@ -47,6 +49,9 @@ pub struct Huobi {
     secret_key: String,
     host: String,
     is_margin: bool,
+    // margin/super-margin
+    margin_type: String,
+    account_ids: HashMap<String, String>,
 }
 
 impl Huobi {
@@ -56,15 +61,36 @@ impl Huobi {
             secret_key: secret_key.unwrap_or_else(|| "".into()),
             host: host,
             is_margin: false,
+            margin_type: "margin".into(),
+            account_ids: HashMap::new(),
         }
     }
 
-    pub fn set_margin(&mut self) {
-        self.is_margin = true;
+    pub fn set_margin(&mut self, margin_type: &str) {
+        self.margin_type = margin_type.into();
     }
 
     pub fn set_spot(&mut self) {
         self.is_margin = false;
+    }
+
+    pub fn set_account_ids(&mut self) -> Result<bool> {
+        let uri = "/v1/account/accounts";
+        let params: BTreeMap<String, String> = BTreeMap::new();
+        let req = self.build_signed_request(params)?;
+        let ret = self.get_signed(&uri, &req)?;
+        let val: Value = serde_json::from_str(&ret)?;
+        if val["data"].is_null() {
+            bail!("get_account_ids error: {:?}", val);
+        }
+
+        val["data"].as_array().unwrap().iter().for_each(|account| {
+            self.account_ids.insert(
+                account["type"].as_str().unwrap().to_string(),
+                account["id"].as_i64().unwrap().to_string(),
+            );
+        });
+        Ok(true)
     }
 
     pub fn get(&self, endpoint: &str, request: &str) -> Result<String> {
@@ -88,7 +114,7 @@ impl Huobi {
     }
 
     pub fn get_signed(&self, endpoint: &str, request: &str) -> Result<String> {
-        let url = self.sign(endpoint, request);
+        let url = self.sign("GET", endpoint, request);
         let client = reqwest::blocking::Client::new();
         let resp = client
             .get(url.as_str())
@@ -98,7 +124,7 @@ impl Huobi {
     }
 
     pub fn post_signed(&self, endpoint: &str, request: &str) -> Result<String> {
-        let url = self.sign(endpoint, request);
+        let url = self.sign("POST", endpoint, request);
         let client = reqwest::blocking::Client::new();
         let resp = client
             .post(url.as_str())
@@ -107,19 +133,27 @@ impl Huobi {
         self.handler(resp)
     }
 
-    fn sign(&self, endpoint: &str, request: &str) -> String {
+    fn sign(&self, method: &str, endpoint: &str, request: &str) -> String {
+        let split = self.host.split("//").collect::<Vec<&str>>();
+        let hostname = split[1];
+        let request = percent_encode(request).unwrap();
+        let payload = method.to_string() + "\n" + hostname + "\n" + endpoint + "\n" + &request;
+
         let key = hmac::Key::new(hmac::HMAC_SHA256, self.secret_key.as_bytes());
-        let signature = hex_encode(hmac::sign(&key, request.as_bytes()).as_ref());
-        let body: String = format!("{}&signature={}", request, signature);
+        let signature = encode(hmac::sign(&key, payload.as_bytes()).as_ref());
+        println!("payload: {:?}", payload);
+        println!("signature: {:?}", signature);
+        let body: String = format!("{}&Signature={}", request, signature);
         let url: String = format!("{}{}?{}", self.host, endpoint, body);
         url
     }
 
     fn build_signed_request(&self, mut params: BTreeMap<String, String>) -> Result<String> {
-        params.insert("recvWindow".into(), "5000".to_string());
-
-        if let Ok(ts) = get_timestamp() {
-            params.insert("timestamp".into(), ts.to_string());
+        if let Ok(ts) = get_utc_ts() {
+            params.insert("Timestamp".into(), ts);
+            params.insert("AccessKeyId".into(), self.api_key.clone());
+            params.insert("SignatureMethod".into(), "HmacSHA256".into());
+            params.insert("SignatureVersion".into(), "2".into());
             let mut req = String::new();
             for (k, v) in &params {
                 let param = format!("{}={}&", k, v);
@@ -141,10 +175,10 @@ impl Huobi {
                 HeaderValue::from_static("application/x-www-form-urlencoded"),
             );
         }
-        headers.insert(
+        /*headers.insert(
             HeaderName::from_static("x-mbx-apikey"),
             HeaderValue::from_str(self.api_key.as_str())?,
-        );
+        );*/
         Ok(headers)
     }
 
@@ -248,7 +282,12 @@ impl Spot for Huobi {
         } else {
             SPOT_URI.get("get_kline").unwrap()
         };
-        let params = format!("symbol={}&period={}&size={}", symbol.to_lowercase(), period, limit);
+        let params = format!(
+            "symbol={}&period={}&size={}",
+            symbol.to_lowercase(),
+            period,
+            limit
+        );
         let ret = self.get(uri, &params)?;
         let val: Value = serde_json::from_str(&ret)?;
         let klines = val["data"]
@@ -274,36 +313,51 @@ impl Spot for Huobi {
         } else {
             SPOT_URI.get("get_balance").unwrap()
         };
+        let mut account_type = "spot".to_string();
+        if self.is_margin {
+            account_type = self.margin_type.clone();
+        }
+        match self.account_ids.get(&account_type) {
+            Some(_) => {}
+            None => {
+                bail!("set_account_ids first");
+            }
+        }
+        let uri = str::replace(uri, "account_id", &self.account_ids[&account_type]);
         let params: BTreeMap<String, String> = BTreeMap::new();
         let req = self.build_signed_request(params)?;
-        let ret = self.get_signed(uri, &req)?;
+        let ret = self.get_signed(&uri, &req)?;
         let val: Value = serde_json::from_str(&ret)?;
+        println!("val: {:?}", val);
 
-        let idx = if self.is_margin {
-            "userAssets"
-        } else {
-            "balances"
+        let mut balance = Balance {
+            asset: asset.into(),
+            free: 0.0,
+            locked: 0.0,
         };
-        let balance = val[idx]
+        val["data"]["list"]
             .as_array()
             .unwrap()
             .iter()
-            .find(|balance| balance["asset"].as_str().unwrap() == asset.to_string());
-        let balance = balance.unwrap();
-
-        Ok(Balance {
-            asset: asset.into(),
-            free: balance["free"]
-                .as_str()
-                .unwrap()
-                .parse::<f64>()
-                .unwrap_or(0.0),
-            locked: balance["locked"]
-                .as_str()
-                .unwrap()
-                .parse::<f64>()
-                .unwrap_or(0.0),
-        })
+            .for_each(|item| {
+                if item["currency"].as_str().unwrap() == asset.to_lowercase() {
+                    if item["type"].as_str().unwrap() == "trade".to_string() {
+                        balance.free = item["balance"]
+                            .as_str()
+                            .unwrap()
+                            .parse::<f64>()
+                            .unwrap_or(0.0);
+                    }
+                    if item["type"].as_str().unwrap() == "frozen".to_string() {
+                        balance.locked = item["balance"]
+                            .as_str()
+                            .unwrap()
+                            .parse::<f64>()
+                            .unwrap_or(0.0);
+                    }
+                }
+            });
+        Ok(balance)
     }
 
     fn create_order(
@@ -433,25 +487,41 @@ mod test {
     use super::*;
 
     const HOST: &'static str = "https://api.huobi.pro";
+    const API_KEY: &'static str = "e1a90fa3-ht4tgq1e4t-e02cdf4d-f7b94";
+    const SECRET_KEY: &'static str = "5d80336b-c8263ba7-c58bdc4e-ff5f0";
 
-    #[test]
+    //#[test]
     fn test_get_orderbook() {
         let api = Huobi::new(None, None, HOST.into());
         let ret = api.get_orderbook("BTCUSDT", 10);
         println!("{:?}", ret);
     }
 
-    #[test]
+    //#[test]
     fn test_get_ticker() {
         let api = Huobi::new(None, None, HOST.into());
         let ret = api.get_ticker("BTCUSDT");
         println!("{:?}", ret);
     }
 
-    #[test]
+    //#[test]
     fn test_get_kline() {
         let api = Huobi::new(None, None, HOST.into());
         let ret = api.get_kline("BTCUSDT", "15min", 10);
+        println!("{:?}", ret);
+    }
+
+    //#[test]
+    fn test_set_account_ids() {
+        let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
+        api.set_account_ids();
+    }
+
+    #[test]
+    fn test_get_balance() {
+        let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
+        api.set_account_ids();
+        let ret = api.get_balance("BTC");
         println!("{:?}", ret);
     }
 }
