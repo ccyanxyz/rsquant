@@ -132,8 +132,6 @@ impl Huobi {
         let signature = self.sign(&format!("{}\n{}\n{}\n{}", "POST", hostname, endpoint, params_str));
 
         let req = format!("{}{}?{}&Signature={}", self.host, endpoint, params_str, percent_encode(&signature.clone()));
-        println!("req: {:?}", req);
-        println!("body: {:?}", body);
 
         let client = reqwest::blocking::Client::new();
         let resp = client
@@ -253,7 +251,6 @@ impl Spot for Huobi {
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
         let val: Value = serde_json::from_str(&ret)?;
-        println!("val: {:?}", val);
 
         let mut balance = Balance {
             asset: asset.into(),
@@ -334,7 +331,7 @@ impl Spot for Huobi {
         let ret = self.get_signed(&uri, params)?;
         let val: Value = serde_json::from_str(&ret)?;
 
-        let status: u8 = match val["state"].as_str() {
+        let status: u8 = match val["data"]["state"].as_str() {
             Some("submitted") => ORDER_STATUS_SUBMITTED,
             Some("filled") => ORDER_STATUS_FILLED,
             Some("partial-filled") => ORDER_STATUS_PART_FILLED,
@@ -342,15 +339,15 @@ impl Spot for Huobi {
             _ => ORDER_STATUS_FAILED,
         };
         Ok(Order {
-            symbol: val["symbol"].as_str().unwrap().into(),
-            order_id: val["id"].as_i64().unwrap().to_string(),
-            price: val["price"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-            amount: val["amount"]
+            symbol: val["data"]["symbol"].as_str().unwrap().into(),
+            order_id: val["data"]["id"].as_i64().unwrap().to_string(),
+            price: val["data"]["price"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+            amount: val["data"]["amount"]
                 .as_str()
                 .unwrap()
                 .parse::<f64>()
                 .unwrap_or(0.0),
-            filled: val["filled-amount"]
+            filled: val["data"]["field-amount"]
                 .as_str()
                 .unwrap()
                 .parse::<f64>()
