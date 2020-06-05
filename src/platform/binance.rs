@@ -8,7 +8,7 @@ use hex::encode as hex_encode;
 use reqwest::blocking::Response;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE, USER_AGENT};
 use reqwest::StatusCode;
-use ring::{hmac, digest};
+use ring::{digest, hmac};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 

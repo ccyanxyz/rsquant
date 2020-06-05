@@ -4,7 +4,7 @@ use crate::models::*;
 use crate::traits::*;
 use crate::utils::*;
 
-use ring::{hmac, digest};
+use ring::{digest, hmac};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -39,12 +39,17 @@ impl Huobi {
         let ret = self.get_signed(&uri, params)?;
         let val: Value = serde_json::from_str(&ret)?;
         if val["data"].is_null() {
-            return Err(Box::new(ExError::ApiError(format!("get_account_id error: {:?}", val))));
+            return Err(Box::new(ExError::ApiError(format!(
+                "get_account_id error: {:?}",
+                val
+            ))));
         }
 
-        let account_id = val["data"].as_array().unwrap().iter().find(|account| {
-                account["type"].as_str().unwrap() == account_type
-        });
+        let account_id = val["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|account| account["type"].as_str().unwrap() == account_type);
         Ok(account_id.unwrap()["id"].as_i64().unwrap().to_string())
     }
 
@@ -69,9 +74,7 @@ impl Huobi {
     pub fn post(&self, endpoint: &str) -> APIResult<String> {
         let url: String = format!("{}{}", self.host, endpoint);
         let client = reqwest::blocking::Client::new();
-        let resp = client
-            .post(url.as_str())
-            .send()?;
+        let resp = client.post(url.as_str()).send()?;
 
         let body = resp.text()?;
         let val: Value = serde_json::from_str(body.as_str())?;
@@ -85,7 +88,11 @@ impl Huobi {
         Ok(body)
     }
 
-    pub fn get_signed(&self, endpoint: &str, mut params: BTreeMap<String, String>) -> APIResult<String> {
+    pub fn get_signed(
+        &self,
+        endpoint: &str,
+        mut params: BTreeMap<String, String>,
+    ) -> APIResult<String> {
         let ts = get_utc_ts();
         params.insert("Timestamp".into(), ts);
         params.insert("AccessKeyId".into(), self.api_key.clone());
@@ -95,14 +102,21 @@ impl Huobi {
         let params_str = self.build_query_string(params);
         let split = self.host.split("//").collect::<Vec<&str>>();
         let hostname = split[1];
-        let signature = self.sign(&format!("{}\n{}\n{}\n{}", "GET", hostname, endpoint, params_str));
+        let signature = self.sign(&format!(
+            "{}\n{}\n{}\n{}",
+            "GET", hostname, endpoint, params_str
+        ));
 
-        let req = format!("{}{}?{}&Signature={}", self.host, endpoint, params_str, percent_encode(&signature.clone()));
+        let req = format!(
+            "{}{}?{}&Signature={}",
+            self.host,
+            endpoint,
+            params_str,
+            percent_encode(&signature.clone())
+        );
 
         let client = reqwest::blocking::Client::new();
-        let resp = client
-            .get(req.as_str())
-            .send()?;
+        let resp = client.get(req.as_str()).send()?;
         let body = resp.text()?;
         let val: Value = serde_json::from_str(body.as_str())?;
         if val["status"].as_str() == Some("error") {
@@ -115,7 +129,12 @@ impl Huobi {
         Ok(body)
     }
 
-    pub fn post_signed(&self, endpoint: &str, mut params: BTreeMap<String, String>, body: &BTreeMap<String, String>) -> APIResult<String> {
+    pub fn post_signed(
+        &self,
+        endpoint: &str,
+        mut params: BTreeMap<String, String>,
+        body: &BTreeMap<String, String>,
+    ) -> APIResult<String> {
         let ts = get_utc_ts();
         params.insert("Timestamp".into(), ts);
         params.insert("AccessKeyId".into(), self.api_key.clone());
@@ -125,15 +144,21 @@ impl Huobi {
         let params_str = self.build_query_string(params);
         let split = self.host.split("//").collect::<Vec<&str>>();
         let hostname = split[1];
-        let signature = self.sign(&format!("{}\n{}\n{}\n{}", "POST", hostname, endpoint, params_str));
+        let signature = self.sign(&format!(
+            "{}\n{}\n{}\n{}",
+            "POST", hostname, endpoint, params_str
+        ));
 
-        let req = format!("{}{}?{}&Signature={}", self.host, endpoint, params_str, percent_encode(&signature.clone()));
+        let req = format!(
+            "{}{}?{}&Signature={}",
+            self.host,
+            endpoint,
+            params_str,
+            percent_encode(&signature.clone())
+        );
 
         let client = reqwest::blocking::Client::new();
-        let resp = client
-            .post(req.as_str())
-            .json(body)
-            .send()?;
+        let resp = client.post(req.as_str()).json(body).send()?;
         let body = resp.text()?;
         let val: Value = serde_json::from_str(body.as_str())?;
         if val["status"].as_str() == Some("error") {
@@ -337,7 +362,11 @@ impl Spot for Huobi {
         Ok(Order {
             symbol: val["data"]["symbol"].as_str().unwrap().into(),
             order_id: val["data"]["id"].as_i64().unwrap().to_string(),
-            price: val["data"]["price"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+            price: val["data"]["price"]
+                .as_str()
+                .unwrap()
+                .parse::<f64>()
+                .unwrap_or(0.0),
             amount: val["data"]["amount"]
                 .as_str()
                 .unwrap()
@@ -375,7 +404,11 @@ impl Spot for Huobi {
                 Order {
                     symbol: order["symbol"].as_str().unwrap().into(),
                     order_id: order["id"].as_i64().unwrap().to_string(),
-                    price: order["price"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    price: order["price"]
+                        .as_str()
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap_or(0.0),
                     amount: order["amount"]
                         .as_str()
                         .unwrap()
@@ -450,14 +483,14 @@ mod test {
         // create_order
         let order_id = api.create_order("BTCUSDT", 10000.0, 0.01, "SELL", "LIMIT");
         println!("order_id: {:?}", order_id);
-        
+
         // get_open_orders
         let open_orders = api.get_open_orders("BTCUSDT");
         println!("open_orders: {:?}", open_orders);
 
         // cancel_all
         let _ = api.cancel_all("BTCUSDT");
-        
+
         // get_order
         let order = api.get_order(&order_id.unwrap());
         println!("order: {:?}", order);
