@@ -1,7 +1,7 @@
 use core::fmt;
 use std::error::Error;
 
-pub type APIResult<T> = Result<T, Box<std::error::Error>>;
+pub type APIResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Debug, Clone)]
 pub enum ExError {

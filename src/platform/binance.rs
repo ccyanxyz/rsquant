@@ -67,7 +67,7 @@ impl Binance {
         self.is_margin = false;
     }
 
-    pub fn get(&self, endpoint: &str, request: &str) -> Result<String> {
+    pub fn get(&self, endpoint: &str, request: &str) -> APIResult<String> {
         let mut url: String = format!("{}{}", self.host, endpoint);
         if !request.is_empty() {
             url.push_str(format!("?{}", request).as_str());
@@ -76,7 +76,7 @@ impl Binance {
         self.handler(response)
     }
 
-    pub fn post(&self, endpoint: &str) -> Result<String> {
+    pub fn post(&self, endpoint: &str) -> APIResult<String> {
         let url: String = format!("{}{}", self.host, endpoint);
         let client = reqwest::blocking::Client::new();
         let resp = client
@@ -87,7 +87,7 @@ impl Binance {
         self.handler(resp)
     }
 
-    pub fn put(&self, endpoint: &str, key: &str) -> Result<String> {
+    pub fn put(&self, endpoint: &str, key: &str) -> APIResult<String> {
         let url: String = format!("{}{}", self.host, endpoint);
         let data: String = format!("listenKey={}", key);
 
@@ -100,7 +100,7 @@ impl Binance {
         self.handler(resp)
     }
 
-    pub fn delete(&self, endpoint: &str, key: &str) -> Result<String> {
+    pub fn delete(&self, endpoint: &str, key: &str) -> APIResult<String> {
         let url: String = format!("{}{}", self.host, endpoint);
         let data: String = format!("listenKey={}", key);
 
@@ -113,7 +113,7 @@ impl Binance {
         self.handler(resp)
     }
 
-    pub fn get_signed(&self, endpoint: &str, request: &str) -> Result<String> {
+    pub fn get_signed(&self, endpoint: &str, request: &str) -> APIResult<String> {
         let url = self.sign(endpoint, request);
         let client = reqwest::blocking::Client::new();
         let resp = client
@@ -123,7 +123,7 @@ impl Binance {
         self.handler(resp)
     }
 
-    pub fn post_signed(&self, endpoint: &str, request: &str) -> Result<String> {
+    pub fn post_signed(&self, endpoint: &str, request: &str) -> APIResult<String> {
         let url = self.sign(endpoint, request);
         let client = reqwest::blocking::Client::new();
         let resp = client
@@ -133,7 +133,7 @@ impl Binance {
         self.handler(resp)
     }
 
-    pub fn delete_signed(&self, endpoint: &str, request: &str) -> Result<String> {
+    pub fn delete_signed(&self, endpoint: &str, request: &str) -> APIResult<String> {
         let url = self.sign(endpoint, request);
         let client = reqwest::blocking::Client::new();
         let resp = client
@@ -151,7 +151,7 @@ impl Binance {
         url
     }
 
-    fn build_signed_request(&self, mut params: BTreeMap<String, String>) -> Result<String> {
+    fn build_signed_request(&self, mut params: BTreeMap<String, String>) -> APIResult<String> {
         params.insert("recvWindow".into(), "5000".to_string());
 
         if let Ok(ts) = get_timestamp() {
@@ -168,7 +168,7 @@ impl Binance {
         }
     }
 
-    fn build_headers(&self, content_type: bool) -> Result<HeaderMap> {
+    fn build_headers(&self, content_type: bool) -> APIResult<HeaderMap> {
         let mut headers = HeaderMap::new();
         headers.insert(USER_AGENT, HeaderValue::from_static("rsquant"));
         if content_type {
@@ -184,7 +184,7 @@ impl Binance {
         Ok(headers)
     }
 
-    fn handler(&self, resp: Response) -> Result<String> {
+    fn handler(&self, resp: Response) -> APIResult<String> {
         match resp.status() {
             StatusCode::OK => {
                 let body = resp.text()?;
@@ -218,7 +218,7 @@ impl Binance {
 }
 
 impl Spot for Binance {
-    fn get_orderbook(&self, symbol: &str, depth: u8) -> Result<Orderbook> {
+    fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_orderbook").unwrap()
         } else {
@@ -254,7 +254,7 @@ impl Spot for Binance {
         })
     }
 
-    fn get_ticker(&self, symbol: &str) -> Result<Ticker> {
+    fn get_ticker(&self, symbol: &str) -> APIResult<Ticker> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_ticker").unwrap()
         } else {
@@ -293,7 +293,7 @@ impl Spot for Binance {
         })
     }
 
-    fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> Result<Vec<Kline>> {
+    fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_kline").unwrap()
         } else {
@@ -319,7 +319,7 @@ impl Spot for Binance {
         Ok(klines)
     }
 
-    fn get_balance(&self, asset: &str) -> Result<Balance> {
+    fn get_balance(&self, asset: &str) -> APIResult<Balance> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_balance").unwrap()
         } else {
@@ -364,7 +364,7 @@ impl Spot for Binance {
         amount: f64,
         action: &str,
         order_type: &str,
-    ) -> Result<String> {
+    ) -> APIResult<String> {
         let uri = if self.is_margin {
             MARGIN_URI.get("create_order").unwrap()
         } else {
@@ -384,7 +384,7 @@ impl Spot for Binance {
         Ok(val["orderId"].as_i64().unwrap().to_string())
     }
 
-    fn cancel(&self, id: &str) -> Result<bool> {
+    fn cancel(&self, id: &str) -> APIResult<bool> {
         let uri = if self.is_margin {
             MARGIN_URI.get("cancel").unwrap()
         } else {
@@ -397,7 +397,7 @@ impl Spot for Binance {
         Ok(true)
     }
 
-    fn cancel_all(&self, symbol: &str) -> Result<bool> {
+    fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
         let uri = if self.is_margin {
             MARGIN_URI.get("cancel_all").unwrap()
         } else {
@@ -410,7 +410,7 @@ impl Spot for Binance {
         Ok(true)
     }
 
-    fn get_order(&self, id: &str) -> Result<Order> {
+    fn get_order(&self, id: &str) -> APIResult<Order> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_order").unwrap()
         } else {
@@ -447,7 +447,7 @@ impl Spot for Binance {
         })
     }
 
-    fn get_open_orders(&self, symbol: &str) -> Result<Vec<Order>> {
+    fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_open_orders").unwrap()
         } else {

@@ -4,13 +4,9 @@ use crate::models::*;
 use crate::traits::*;
 use crate::utils::*;
 
-use base64::encode;
-use reqwest::blocking::Response;
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE, USER_AGENT};
-use reqwest::StatusCode;
 use ring::{hmac, digest};
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 #[derive(Clone)]
 pub struct Huobi {
@@ -39,11 +35,11 @@ impl Huobi {
 
     pub fn get_account_id(&self, account_type: &str) -> APIResult<String> {
         let uri = "/v1/account/accounts";
-        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        let params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
         let val: Value = serde_json::from_str(&ret)?;
         if val["data"].is_null() {
-            bail!("get_account_id error: {:?}", val);
+            return Err(Box::new(ExError::ApiError(format!("get_account_id error: {:?}", val))));
         }
 
         let account_id = val["data"].as_array().unwrap().iter().find(|account| {
@@ -157,7 +153,7 @@ impl Huobi {
         BASE64.encode(sig.as_ref())
     }
 
-    fn build_query_string(&self, mut params: BTreeMap<String, String>) -> String {
+    fn build_query_string(&self, params: BTreeMap<String, String>) -> String {
         params
             .into_iter()
             .map(|(k, v)| format!("{}={}", k, percent_encode(&v.clone())))
@@ -248,7 +244,7 @@ impl Spot for Huobi {
 
     fn get_balance(&self, asset: &str) -> APIResult<Balance> {
         let uri = format!("/v1/account/accounts/{}/balance", self.account_id);
-        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        let params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
         let val: Value = serde_json::from_str(&ret)?;
 
@@ -291,7 +287,7 @@ impl Spot for Huobi {
         order_type: &str,
     ) -> APIResult<String> {
         let uri = "/v1/order/orders/place";
-        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        let params: BTreeMap<String, String> = BTreeMap::new();
         let mut body: BTreeMap<String, String> = BTreeMap::new();
         body.insert("account-id".into(), self.account_id.clone());
         body.insert("symbol".into(), symbol.to_string().to_lowercase());
@@ -309,15 +305,15 @@ impl Spot for Huobi {
 
     fn cancel(&self, id: &str) -> APIResult<bool> {
         let uri = format!("/v1/order/orders/{}/submitcancel", id);
-        let mut params: BTreeMap<String, String> = BTreeMap::new();
-        let mut body: BTreeMap<String, String> = BTreeMap::new();
+        let params: BTreeMap<String, String> = BTreeMap::new();
+        let body: BTreeMap<String, String> = BTreeMap::new();
         let _ret = self.post_signed(&uri, params, &body)?;
         Ok(true)
     }
 
     fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
         let uri = "/v1/order/orders/batchCancelOpenOrders";
-        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        let params: BTreeMap<String, String> = BTreeMap::new();
         let mut body: BTreeMap<String, String> = BTreeMap::new();
         body.insert("account-id".into(), self.account_id.clone());
         body.insert("symbol".into(), symbol.to_string().to_lowercase());
@@ -327,7 +323,7 @@ impl Spot for Huobi {
 
     fn get_order(&self, id: &str) -> APIResult<Order> {
         let uri = format!("/v1/order/orders/{}", id);
-        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        let params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
         let val: Value = serde_json::from_str(&ret)?;
 
