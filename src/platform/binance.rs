@@ -8,7 +8,7 @@ use hex::encode as hex_encode;
 use reqwest::blocking::Response;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE, USER_AGENT};
 use reqwest::StatusCode;
-use ring::hmac;
+use ring::{hmac, digest};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 
@@ -144,7 +144,7 @@ impl Binance {
     }
 
     fn sign(&self, endpoint: &str, request: &str) -> String {
-        let key = hmac::Key::new(hmac::HMAC_SHA256, self.secret_key.as_bytes());
+        let key = hmac::SigningKey::new(&digest::SHA256, self.secret_key.as_bytes());
         let signature = hex_encode(hmac::sign(&key, request.as_bytes()).as_ref());
         let body: String = format!("{}&signature={}", request, signature);
         let url: String = format!("{}{}?{}", self.host, endpoint, body);
@@ -164,7 +164,7 @@ impl Binance {
             req.pop();
             Ok(req)
         } else {
-            bail!("Failed to get timestamp")
+            return Err(Box::new(ExError::ApiError("get_timestamp failed".into())));
         }
     }
 
@@ -190,28 +190,8 @@ impl Binance {
                 let body = resp.text()?;
                 Ok(body)
             }
-            StatusCode::INTERNAL_SERVER_ERROR => {
-                bail!("Internal Server Error");
-            }
-            StatusCode::SERVICE_UNAVAILABLE => {
-                bail!("Service Unavailable");
-            }
-            StatusCode::UNAUTHORIZED => {
-                bail!("Unauthorized");
-            }
-            StatusCode::BAD_REQUEST => {
-                let err: Value = resp.json()?;
-                let err_info = ExErrorInfo {
-                    code: err["code"].as_i64().unwrap_or(-1),
-                    msg: err["msg"]
-                        .as_str()
-                        .unwrap_or("unwrap msg failed")
-                        .to_string(),
-                };
-                Err(ErrorKind::ExError(err_info).into())
-            }
             s => {
-                bail!(format!("Received response: {:?}", s));
+                return Err(Box::new(ExError::ApiError(format!("response: {:?}", s))));
             }
         }
     }
@@ -499,6 +479,7 @@ impl Spot for Binance {
 
 #[cfg(test)]
 mod test {
+    #![allow(dead_code)]
     use super::*;
 
     const API_KEY: &'static str =

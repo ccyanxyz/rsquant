@@ -396,6 +396,7 @@ impl Spot for Huobi {
 
 #[cfg(test)]
 mod test {
+    #![allow(dead_code)]
     use super::*;
 
     const HOST: &'static str = "https://api.huobi.pro";
@@ -439,7 +440,7 @@ mod test {
         println!("{:?}", ret);
     }
 
-    #[test]
+    //#[test]
     fn test_orders() {
         let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
         // set account_id
@@ -455,7 +456,7 @@ mod test {
         println!("open_orders: {:?}", open_orders);
 
         // cancel_all
-        api.cancel_all("BTCUSDT");
+        let _ = api.cancel_all("BTCUSDT");
         
         // get_order
         let order = api.get_order(&order_id.unwrap());

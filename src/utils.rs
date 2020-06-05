@@ -24,6 +24,7 @@ pub fn percent_encode(source: &str) -> String {
 
 #[cfg(test)]
 mod test {
+    #![allow(dead_code)]
     use super::*;
 
     //#[test]
