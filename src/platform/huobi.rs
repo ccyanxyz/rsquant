@@ -18,6 +18,7 @@ pub struct Huobi {
     secret_key: String,
     host: String,
     account_id: String,
+    account_type: String,
 }
 
 impl Huobi {
@@ -27,11 +28,13 @@ impl Huobi {
             secret_key: secret_key.unwrap_or_else(|| "".into()),
             host: host,
             account_id: "".into(),
+            account_type: "spot".into(),
         }
     }
 
-    pub fn set_account_id(&mut self, account_id: &str) {
+    pub fn set_account(&mut self, account_type: &str, account_id: &str) {
         self.account_id = account_id.into();
+        self.account_type = account_type.into();
     }
 
     pub fn get_account_id(&self, account_type: &str) -> APIResult<String> {
@@ -126,7 +129,7 @@ impl Huobi {
         let params_str = self.build_query_string(params);
         let split = self.host.split("//").collect::<Vec<&str>>();
         let hostname = split[1];
-        let signature = self.sign(&format!("{}\n{}\n{}\n{}", "GET", hostname, endpoint, params_str));
+        let signature = self.sign(&format!("{}\n{}\n{}\n{}", "POST", hostname, endpoint, params_str));
 
         let req = format!("{}{}?{}&Signature={}", self.host, endpoint, params_str, percent_encode(&signature.clone()));
         println!("req: {:?}", req);
@@ -300,6 +303,7 @@ impl Spot for Huobi {
         body.insert("type".into(), body_type);
         body.insert("amount".into(), amount.to_string());
         body.insert("price".into(), price.to_string());
+        body.insert("source".into(), self.account_type.clone() + "-api");
         let ret = self.post_signed(uri, params, &body)?;
         let val: Value = serde_json::from_str(&ret)?;
 
@@ -437,7 +441,7 @@ mod test {
     fn test_get_balance() {
         let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
         let acc_id = api.get_account_id("super-margin").unwrap();
-        api.set_account_id(&acc_id);
+        api.set_account("super-margin", &acc_id);
         let ret = api.get_balance("BTC");
         println!("{:?}", ret);
     }
@@ -447,7 +451,7 @@ mod test {
         let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
         // set account_id
         let acc_id = api.get_account_id("super-margin").unwrap();
-        api.set_account_id(&acc_id);
+        api.set_account("super-margin", &acc_id);
 
         // create_order
         let order_id = api.create_order("BTCUSDT", 10000.0, 0.01, "SELL", "LIMIT");
