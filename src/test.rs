@@ -1,16 +1,37 @@
-use serde_json::Value;
-fn main() {
-    let s = r#"{
-      "status": "error",
-      "ch": "market.btcusdt.kline.1day",
-      "ts": 1499223904680,
-      "data": 111
-    }"#;
+use std::io::prelude::*;
+use ws::{Handler, Sender, Handshake, Result, Message};
+use flate2::read::GzDecoder;
 
-    let val: Value = serde_json::from_str(s).unwrap();
-    println!("val: {:?}", val);
+struct Client {
+    out: Sender,
+}
 
-    if val["status"].as_str() == Some("error") {
-        println!("shit");
+impl Handler for Client {
+    fn on_open(&mut self, shake: Handshake) -> Result<()> {
+        println!("on_open");
+        self.out.send(r#"{"sub": "market.ethbtc.kline.1min", "id": "id1"}"#);
+        Ok(())
     }
+
+    fn on_message(&mut self, msg: Message) -> Result<()> {
+        println!("msg: {:?}", msg);
+        let slice = &msg.into_data()[..];
+        let mut d = GzDecoder::new(slice);
+        let mut s = String::new();
+        d.read_to_string(&mut s).unwrap();
+        println!("decoded: {:?}", s);
+        Ok(())
+    }
+}
+
+fn main() {
+    env_logger::init();
+    
+    let url = "wss://api.huobi.pro/ws";
+    ws::connect(url, |out| {
+        Client {
+            out,
+        }
+    }).unwrap();
+    println!("client finished");
 }

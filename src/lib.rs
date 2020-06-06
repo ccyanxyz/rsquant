@@ -1,6 +1,8 @@
 extern crate base64;
 extern crate serde;
 extern crate serde_json;
+extern crate ws;
+extern crate env_logger;
 
 #[macro_use]
 extern crate serde_derive;
