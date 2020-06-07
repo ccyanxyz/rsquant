@@ -204,15 +204,26 @@ impl<'a> Handler for HuobiWs<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::utils::get_timestamp;
 
     #[test]
     fn test_huobiws() {
         let handler = |event: WsEvent| {
-            println!("event: {:?}", event);
+            match event {
+                WsEvent::OrderbookEvent(e) => {
+                    println!("orderbook: {:?}", e);
+                    let ts = get_timestamp();
+                    let diff = ts.unwrap() - e.timestamp;
+                    println!("diff: {:?}", diff);
+                },
+                _ => {
+                    println!("event: {:?}", event);
+                }
+            }
             Ok(())
         };
         let mut huobi = HuobiWs::new("wss://api.huobi.pro/ws");
-        huobi.sub_ticker("BTCUSDT");
+        huobi.sub_orderbook("BTCUSDT");
         huobi.connect(handler);
     }
 }
