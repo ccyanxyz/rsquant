@@ -17,7 +17,7 @@ pub enum WsEvent {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Response {
     id: String,
-    ch: String,
+    status: String,
     subbed: String,
     ts: i64,
 }
@@ -121,12 +121,12 @@ impl<'a> HuobiWs<'a> {
             return Ok(WsEvent::TickerEvent(Ticker {
                 symbol: val["tick"]["symbol"].as_str().unwrap().into(),
                 bid: Bid {
-                    price: val["tick"]["bid"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                    amount: val["tick"]["bidSize"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    price: val["tick"]["bid"].as_f64().unwrap_or(0.0),
+                    amount: val["tick"]["bidSize"].as_f64().unwrap_or(0.0),
                 },
                 ask: Ask {
-                    price: val["tick"]["ask"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                    amount: val["tick"]["askSize"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                    price: val["tick"]["ask"].as_f64().unwrap_or(0.0),
+                    amount: val["tick"]["askSize"].as_f64().unwrap_or(0.0),
                 }
             }));
         } else if s.find("trade.detail") != None {
