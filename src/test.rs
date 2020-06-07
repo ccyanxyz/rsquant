@@ -1,6 +1,6 @@
-use std::io::prelude::*;
-use ws::{Handler, Sender, Handshake, Result, Message};
 use flate2::read::GzDecoder;
+use std::io::prelude::*;
+use ws::{Handler, Handshake, Message, Result, Sender};
 
 struct Client {
     out: Sender,
@@ -9,7 +9,8 @@ struct Client {
 impl Handler for Client {
     fn on_open(&mut self, shake: Handshake) -> Result<()> {
         println!("on_open");
-        self.out.send(r#"{"sub": "market.ethbtc.kline.1min", "id": "id1"}"#);
+        self.out
+            .send(r#"{"sub": "market.ethbtc.kline.1min", "id": "id1"}"#);
         Ok(())
     }
 
@@ -26,12 +27,8 @@ impl Handler for Client {
 
 fn main() {
     env_logger::init();
-    
+
     let url = "wss://api.huobi.pro/ws";
-    ws::connect(url, |out| {
-        Client {
-            out,
-        }
-    }).unwrap();
+    ws::connect(url, |out| Client { out }).unwrap();
     println!("client finished");
 }

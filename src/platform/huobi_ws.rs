@@ -1,9 +1,9 @@
-use std::io::prelude::*;
-use ws::{Handler, Sender, Handshake, Result, Message};
-use flate2::read::GzDecoder;
-use serde_json::Value;
 use crate::errors::*;
 use crate::models::*;
+use flate2::read::GzDecoder;
+use serde_json::Value;
+use std::io::prelude::*;
+use ws::{Handler, Handshake, Message, Result, Sender};
 
 #[derive(Debug)]
 pub enum WsEvent {
@@ -33,12 +33,11 @@ pub struct HuobiWs<'a> {
     subs: Vec<String>,
     out: Option<Sender>,
 
-    handler: Box<dyn FnMut(WsEvent) -> Result<()> + 'a>
+    handler: Box<dyn FnMut(WsEvent) -> Result<()> + 'a>,
 }
 
 impl<'a> HuobiWs<'a> {
-    pub fn new(host: &str) -> Self
-    {
+    pub fn new(host: &str) -> Self {
         HuobiWs {
             host: host.into(),
             subs: vec![],
@@ -52,32 +51,45 @@ impl<'a> HuobiWs<'a> {
 
     pub fn connect<Callback: Clone>(&mut self, handler: Callback)
     where
-        Callback: FnMut(WsEvent) -> Result<()> + 'a
+        Callback: FnMut(WsEvent) -> Result<()> + 'a,
     {
-        ws::connect(self.host.clone(), |out| {
-            HuobiWs {
-                host: self.host.clone(),
-                subs: self.subs.clone(),
-                out: Some(out),
-                handler: Box::new(handler.clone()),
-            }
-        }).unwrap();
+        ws::connect(self.host.clone(), |out| HuobiWs {
+            host: self.host.clone(),
+            subs: self.subs.clone(),
+            out: Some(out),
+            handler: Box::new(handler.clone()),
+        })
+        .unwrap();
     }
 
     pub fn sub_kline(&mut self, symbol: &str, period: &str) {
-        self.subs.push(format!("{{\"sub\": \"market.{}.kline.{}\", \"id\": \"id1\"}}", symbol.to_string().to_lowercase(), period));
+        self.subs.push(format!(
+            "{{\"sub\": \"market.{}.kline.{}\", \"id\": \"id1\"}}",
+            symbol.to_string().to_lowercase(),
+            period
+        ));
     }
 
     pub fn sub_orderbook(&mut self, symbol: &str) {
-        self.subs.push(format!("{{\"sub\": \"market.{}.depth.{}\", \"id\": \"id1\"}}", symbol.to_string().to_lowercase(), "step0"));
+        self.subs.push(format!(
+            "{{\"sub\": \"market.{}.depth.{}\", \"id\": \"id1\"}}",
+            symbol.to_string().to_lowercase(),
+            "step0"
+        ));
     }
 
     pub fn sub_trade(&mut self, symbol: &str) {
-        self.subs.push(format!("{{\"sub\": \"market.{}.trade.detail\", \"id\": \"id1\"}}", symbol.to_string().to_lowercase()));
+        self.subs.push(format!(
+            "{{\"sub\": \"market.{}.trade.detail\", \"id\": \"id1\"}}",
+            symbol.to_string().to_lowercase()
+        ));
     }
 
     pub fn sub_ticker(&mut self, symbol: &str) {
-        self.subs.push(format!("{{\"sub\": \"market.{}.bbo\", \"id\": \"id1\"}}", symbol.to_string().to_lowercase()));
+        self.subs.push(format!(
+            "{{\"sub\": \"market.{}.bbo\", \"id\": \"id1\"}}",
+            symbol.to_string().to_lowercase()
+        ));
     }
 
     pub fn deseralize(&self, s: &str) -> APIResult<WsEvent> {
@@ -113,22 +125,18 @@ impl<'a> HuobiWs<'a> {
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|bid| {
-                    Bid {
-                        price: bid[0].as_f64().unwrap_or(0.0),
-                        amount: bid[1].as_f64().unwrap_or(0.0),
-                    }
+                .map(|bid| Bid {
+                    price: bid[0].as_f64().unwrap_or(0.0),
+                    amount: bid[1].as_f64().unwrap_or(0.0),
                 })
                 .collect::<Vec<Bid>>();
             let asks = val["tick"]["asks"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|ask| {
-                    Ask {
-                        price: ask[0].as_f64().unwrap_or(0.0),
-                        amount: ask[1].as_f64().unwrap_or(0.0),
-                    }
+                .map(|ask| Ask {
+                    price: ask[0].as_f64().unwrap_or(0.0),
+                    amount: ask[1].as_f64().unwrap_or(0.0),
                 })
                 .collect::<Vec<Ask>>();
             return Ok(WsEvent::OrderbookEvent(Orderbook {
@@ -146,20 +154,18 @@ impl<'a> HuobiWs<'a> {
                 ask: Ask {
                     price: val["tick"]["ask"].as_f64().unwrap_or(0.0),
                     amount: val["tick"]["askSize"].as_f64().unwrap_or(0.0),
-                }
+                },
             }));
         } else if s.find("trade.detail") != None {
             let trades = val["tick"]["data"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|trade| {
-                    Trade {
-                        timestamp: trade["ts"].as_i64().unwrap_or(0) as u64,
-                        amount: trade["amount"].as_f64().unwrap_or(0.0),
-                        price: trade["price"].as_f64().unwrap_or(0.0),
-                        side: trade["direction"].as_str().unwrap().into(),
-                    }
+                .map(|trade| Trade {
+                    timestamp: trade["ts"].as_i64().unwrap_or(0) as u64,
+                    amount: trade["amount"].as_f64().unwrap_or(0.0),
+                    price: trade["price"].as_f64().unwrap_or(0.0),
+                    side: trade["direction"].as_str().unwrap().into(),
                 })
                 .collect::<Vec<Trade>>();
             return Ok(WsEvent::TradeEvent(trades));
@@ -172,11 +178,9 @@ impl<'a> HuobiWs<'a> {
 impl<'a> Handler for HuobiWs<'a> {
     fn on_open(&mut self, shake: Handshake) -> Result<()> {
         match &self.out {
-            Some(out) => {
-                self.subs.iter().for_each(|s| {
-                    out.send(s.as_str());
-                })
-            },
+            Some(out) => self.subs.iter().for_each(|s| {
+                out.send(s.as_str());
+            }),
             None => {
                 println!("self.out is None");
             }
@@ -190,9 +194,9 @@ impl<'a> Handler for HuobiWs<'a> {
         let mut s = String::new();
         d.read_to_string(&mut s).unwrap();
         match self.deseralize(&s) {
-            Ok(event) => { 
-                (self.handler)(event); 
-            },
+            Ok(event) => {
+                (self.handler)(event);
+            }
             Err(err) => {
                 println!("deseralize msg error: {:?}", err);
             }
@@ -215,7 +219,7 @@ mod test {
                     let ts = get_timestamp();
                     let diff = ts.unwrap() - e.timestamp;
                     println!("diff: {:?}", diff);
-                },
+                }
                 _ => {
                     println!("event: {:?}", event);
                 }
