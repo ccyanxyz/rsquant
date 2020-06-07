@@ -31,6 +31,14 @@ pub struct Orderbook {
 }
 
 #[derive(Debug)]
+pub struct Trade {
+    pub timestamp: u64,
+    pub amount: f64,
+    pub price: f64,
+    pub side: String,
+}
+
+#[derive(Debug)]
 pub struct Bid {
     pub price: f64,
     pub amount: f64,
