@@ -12,6 +12,7 @@ pub enum WsEvent {
     TickerEvent(Ticker),
     TradeEvent(Vec<Trade>),
     ResponseEvent(Response),
+    PingEvent(Ping),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -20,6 +21,11 @@ pub struct Response {
     status: String,
     subbed: String,
     ts: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Ping {
+    ping: i64,
 }
 
 pub struct HuobiWs<'a> {
@@ -75,6 +81,19 @@ impl<'a> HuobiWs<'a> {
     }
 
     pub fn deseralize(&self, s: &str) -> APIResult<WsEvent> {
+        if s.find("ping") != None {
+            let ping: Ping = serde_json::from_str(s)?;
+            match &self.out {
+                Some(out) => {
+                    let msg = format!("{{\"pong\":{}}}", ping.ping);
+                    out.send(msg.as_str());
+                }
+                None => {
+                    println!("self.out is None");
+                }
+            }
+            return Ok(WsEvent::PingEvent(ping));
+        }
         if s.find("tick") == None {
             let resp: Response = serde_json::from_str(s)?;
             return Ok(WsEvent::ResponseEvent(resp));
@@ -170,9 +189,10 @@ impl<'a> Handler for HuobiWs<'a> {
         let mut d = GzDecoder::new(slice);
         let mut s = String::new();
         d.read_to_string(&mut s).unwrap();
-        println!("{:?}", s);
         match self.deseralize(&s) {
-            Ok(event) => { (self.handler)(event); },
+            Ok(event) => { 
+                (self.handler)(event); 
+            },
             Err(err) => {
                 println!("deseralize msg error: {:?}", err);
             }
