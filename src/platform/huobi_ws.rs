@@ -20,8 +20,8 @@ impl HuobiWs {
     pub fn connect(&mut self) {
         ws::connect(self.host.clone(), |out| {
             HuobiWs {
-                host: "".into(),
-                subs: vec![],
+                host: self.host.clone(),
+                subs: self.subs.clone(),
                 out: Some(out),
             }
         }).unwrap();
@@ -40,10 +40,13 @@ impl HuobiWs {
 
 impl Handler for HuobiWs {
     fn on_open(&mut self, shake: Handshake) -> Result<()> {
+		println!("out: {:?}", self.out);
+		println!("subs: {:?}", self.subs);
         match &self.out {
             Some(out) => {
                 self.subs.iter().for_each(|s| {
                     out.send(s.as_str());
+					println!("s: {:?}", s);
                 })
                 //out.send(r#"{"sub": "market.ethbtc.kline.1min", "id": "id1"}"#);
             },
