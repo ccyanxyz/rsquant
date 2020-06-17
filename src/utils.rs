@@ -18,8 +18,7 @@ pub fn percent_encode(source: &str) -> String {
     define_encode_set! {
         pub CUSTOM_ENCODE_SET = [USERINFO_ENCODE_SET] | { '+', ',' }
     }
-    let signature = utf8_percent_encode(&source, CUSTOM_ENCODE_SET).to_string();
-    signature
+    utf8_percent_encode(&source, CUSTOM_ENCODE_SET).to_string()
 }
 
 #[cfg(test)]

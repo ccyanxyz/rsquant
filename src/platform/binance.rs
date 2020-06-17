@@ -54,7 +54,7 @@ impl Binance {
         Binance {
             api_key: api_key.unwrap_or_else(|| "".into()),
             secret_key: secret_key.unwrap_or_else(|| "".into()),
-            host: host,
+            host,
             is_margin: false,
         }
     }
@@ -164,7 +164,7 @@ impl Binance {
             req.pop();
             Ok(req)
         } else {
-            return Err(Box::new(ExError::ApiError("get_timestamp failed".into())));
+            Err(Box::new(ExError::ApiError("get_timestamp failed".into())))
         }
     }
 
@@ -191,7 +191,7 @@ impl Binance {
                 Ok(body)
             }
             s => {
-                return Err(Box::new(ExError::ApiError(format!("response: {:?}", s))));
+                Err(Box::new(ExError::ApiError(format!("response: {:?}", s))))
             }
         }
     }
@@ -229,8 +229,8 @@ impl Spot for Binance {
 
         Ok(Orderbook {
             timestamp: val["lastUpdateId"].as_i64().unwrap_or(0) as u64,
-            asks: asks,
-            bids: bids,
+            asks,
+            bids,
         })
     }
 
@@ -319,7 +319,7 @@ impl Spot for Binance {
             .as_array()
             .unwrap()
             .iter()
-            .find(|balance| balance["asset"].as_str().unwrap() == asset.to_string());
+            .find(|balance| balance["asset"].as_str().unwrap() == asset);
         let balance = balance.unwrap();
 
         Ok(Balance {
@@ -423,7 +423,7 @@ impl Spot for Binance {
                 .unwrap()
                 .parse::<f64>()
                 .unwrap_or(0.0),
-            status: status,
+            status,
         })
     }
 
@@ -469,7 +469,7 @@ impl Spot for Binance {
                         .unwrap()
                         .parse::<f64>()
                         .unwrap_or(0.0),
-                    status: status,
+                    status,
                 }
             })
             .collect::<Vec<Order>>();

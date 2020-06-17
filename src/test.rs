@@ -7,7 +7,7 @@ struct Client {
 }
 
 impl Handler for Client {
-    fn on_open(&mut self, shake: Handshake) -> Result<()> {
+    fn on_open(&mut self, _shake: Handshake) -> Result<()> {
         println!("on_open");
         self.out
             .send(r#"{"sub": "market.ethbtc.kline.1min", "id": "id1"}"#);

@@ -112,14 +112,14 @@ impl<'a> HuobiWs<'a> {
         }
         let val: Value = serde_json::from_str(s)?;
         if s.find("kline") != None {
-            return Ok(WsEvent::KlineEvent(Kline {
+            Ok(WsEvent::KlineEvent(Kline {
                 timestamp: val["tick"]["id"].as_i64().unwrap_or(0) as u64,
                 open: val["tick"]["open"].as_f64().unwrap_or(0.0),
                 high: val["tick"]["high"].as_f64().unwrap_or(0.0),
                 low: val["tick"]["low"].as_f64().unwrap_or(0.0),
                 close: val["tick"]["close"].as_f64().unwrap_or(0.0),
                 volume: val["tick"]["vol"].as_f64().unwrap_or(0.0),
-            }));
+            }))
         } else if s.find("depth") != None {
             let bids = val["tick"]["bids"]
                 .as_array()
@@ -139,13 +139,13 @@ impl<'a> HuobiWs<'a> {
                     amount: ask[1].as_f64().unwrap_or(0.0),
                 })
                 .collect::<Vec<Ask>>();
-            return Ok(WsEvent::OrderbookEvent(Orderbook {
+            Ok(WsEvent::OrderbookEvent(Orderbook {
                 timestamp: val["tick"]["ts"].as_i64().unwrap_or(0) as u64,
-                bids: bids,
-                asks: asks,
-            }));
+                bids,
+                asks,
+            }))
         } else if s.find("bbo") != None {
-            return Ok(WsEvent::TickerEvent(Ticker {
+            Ok(WsEvent::TickerEvent(Ticker {
                 symbol: val["tick"]["symbol"].as_str().unwrap().into(),
                 bid: Bid {
                     price: val["tick"]["bid"].as_f64().unwrap_or(0.0),
@@ -155,7 +155,7 @@ impl<'a> HuobiWs<'a> {
                     price: val["tick"]["ask"].as_f64().unwrap_or(0.0),
                     amount: val["tick"]["askSize"].as_f64().unwrap_or(0.0),
                 },
-            }));
+            }))
         } else if s.find("trade.detail") != None {
             let trades = val["tick"]["data"]
                 .as_array()
@@ -168,15 +168,15 @@ impl<'a> HuobiWs<'a> {
                     side: trade["direction"].as_str().unwrap().into(),
                 })
                 .collect::<Vec<Trade>>();
-            return Ok(WsEvent::TradeEvent(trades));
+            Ok(WsEvent::TradeEvent(trades))
         } else {
-            return Err(Box::new(ExError::ApiError("msg channel not found".into())));
+            Err(Box::new(ExError::ApiError("msg channel not found".into())))
         }
     }
 }
 
 impl<'a> Handler for HuobiWs<'a> {
-    fn on_open(&mut self, shake: Handshake) -> Result<()> {
+    fn on_open(&mut self, _shake: Handshake) -> Result<()> {
         match &self.out {
             Some(out) => self.subs.iter().for_each(|s| {
                 out.send(s.as_str());

@@ -22,7 +22,7 @@ impl Huobi {
         Huobi {
             api_key: api_key.unwrap_or_else(|| "".into()),
             secret_key: secret_key.unwrap_or_else(|| "".into()),
-            host: host,
+            host,
             account_id: "".into(),
             account_type: "spot".into(),
         }
@@ -112,7 +112,7 @@ impl Huobi {
             self.host,
             endpoint,
             params_str,
-            percent_encode(&signature.clone())
+            percent_encode(&signature)
         );
 
         let client = reqwest::blocking::Client::new();
@@ -154,7 +154,7 @@ impl Huobi {
             self.host,
             endpoint,
             params_str,
-            percent_encode(&signature.clone())
+            percent_encode(&signature)
         );
 
         let client = reqwest::blocking::Client::new();
@@ -181,7 +181,7 @@ impl Huobi {
     fn build_query_string(&self, params: BTreeMap<String, String>) -> String {
         params
             .into_iter()
-            .map(|(k, v)| format!("{}={}", k, percent_encode(&v.clone())))
+            .map(|(k, v)| format!("{}={}", k, percent_encode(&v)))
             .collect::<Vec<String>>()
             .join("&")
     }
@@ -216,8 +216,8 @@ impl Spot for Huobi {
 
         Ok(Orderbook {
             timestamp: val["ts"].as_i64().unwrap_or(0) as u64,
-            asks: asks,
-            bids: bids,
+            asks,
+            bids,
         })
     }
 
@@ -284,14 +284,14 @@ impl Spot for Huobi {
             .iter()
             .for_each(|item| {
                 if item["currency"].as_str().unwrap() == asset.to_lowercase() {
-                    if item["type"].as_str().unwrap() == "trade".to_string() {
+                    if item["type"].as_str().unwrap() == "trade" {
                         balance.free = item["balance"]
                             .as_str()
                             .unwrap()
                             .parse::<f64>()
                             .unwrap_or(0.0);
                     }
-                    if item["type"].as_str().unwrap() == "frozen".to_string() {
+                    if item["type"].as_str().unwrap() == "frozen" {
                         balance.locked = item["balance"]
                             .as_str()
                             .unwrap()
@@ -377,7 +377,7 @@ impl Spot for Huobi {
                 .unwrap()
                 .parse::<f64>()
                 .unwrap_or(0.0),
-            status: status,
+            status,
         })
     }
 
@@ -419,7 +419,7 @@ impl Spot for Huobi {
                         .unwrap()
                         .parse::<f64>()
                         .unwrap_or(0.0),
-                    status: status,
+                    status,
                 }
             })
             .collect::<Vec<Order>>();
