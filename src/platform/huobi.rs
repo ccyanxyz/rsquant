@@ -17,6 +17,38 @@ pub struct Huobi {
     account_type: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SymbolInfo {
+    #[serde(rename = "base-currency")]
+    base: String,
+    #[serde(rename = "quote-currency")]
+    quote: String,
+    #[serde(rename = "price-precision")]
+    price_precision: u8,
+    #[serde(rename = "amount-preciesion")]
+    amount_precision: u8,
+    #[serde(rename = "symbol-partition")]
+    partition: String,
+    symbol: String,
+    state: String,
+    #[serde(rename = "value-precision")]
+    value_precision: u8,
+    #[serde(rename = "min-order-amt")]
+    min_amount: f64,
+    #[serde(rename = "max-order-amt")]
+    max_amount: f64,
+    #[serde(rename = "min-order-value")]
+    min_value: f64,
+    #[serde(skip, rename = "leverage-ratio")]
+    max_leverage: u8,
+} 
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HuobiResp {
+    code: u8,
+    data: Vec<SymbolInfo>,
+}
+
 impl Huobi {
     pub fn new(api_key: Option<String>, secret_key: Option<String>, host: String) -> Self {
         Huobi {
@@ -51,6 +83,13 @@ impl Huobi {
             .iter()
             .find(|account| account["type"].as_str().unwrap() == account_type);
         Ok(account_id.unwrap()["id"].as_i64().unwrap().to_string())
+    }
+
+    pub fn get_symbols(&self) -> APIResult<Vec<SymbolInfo>> {
+        let uri = "/v1/common/symbols";
+        let ret = self.get(&uri, "")?;
+        let resp: HuobiResp = serde_json::from_str(&ret)?;
+        Ok(resp.data)
     }
 
     pub fn get(&self, endpoint: &str, request: &str) -> APIResult<String> {
@@ -494,5 +533,12 @@ mod test {
         // get_order
         let order = api.get_order(&order_id.unwrap());
         println!("order: {:?}", order);
+    }
+    
+    #[test]
+    fn test_get_symbols() {
+        let api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
+        let symbols = api.get_symbols();
+        println!("symbols: {:?}", symbols);
     }
 }
