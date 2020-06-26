@@ -210,7 +210,7 @@ mod test {
     use super::*;
     use crate::utils::get_timestamp;
 
-    #[test]
+    //#[test]
     fn test_huobiws() {
         let handler = |event: WsEvent| {
             match event {

@@ -25,7 +25,7 @@ pub struct SymbolInfo {
     quote: String,
     #[serde(rename = "price-precision")]
     price_precision: u8,
-    #[serde(rename = "amount-preciesion")]
+    #[serde(rename = "amount-precision")]
     amount_precision: u8,
     #[serde(rename = "symbol-partition")]
     partition: String,
@@ -45,7 +45,7 @@ pub struct SymbolInfo {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct HuobiResp {
-    code: u8,
+    status: String,
     data: Vec<SymbolInfo>,
 }
 
