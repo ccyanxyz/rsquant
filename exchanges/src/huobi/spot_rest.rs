@@ -1,9 +1,9 @@
 use crate::constant::*;
 use crate::errors::*;
+use crate::huobi::types::*;
+use crate::models::*;
 use crate::traits::*;
 use crate::utils::*;
-use crate::models::*;
-use crate::huobi::types::*;
 
 use ring::{digest, hmac};
 use serde_json::Value;
@@ -38,30 +38,23 @@ impl Huobi {
         let uri = "/v1/account/accounts";
         let params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
-        let val: Value = serde_json::from_str(&ret)?;
-        if val["data"].is_null() {
-            return Err(Box::new(ExError::ApiError(format!(
-                "get_account_id error: {:?}",
-                val
-            ))));
+        let resp: Response<Vec<AccountInfo>> = serde_json::from_str(&ret)?;
+        let account_id = resp.data.iter().find(|account| account.ty == account_type);
+        match account_id {
+            Some(acc_id) => Ok(acc_id.id.to_string()),
+            None => Err(Box::new(ExError::ApiError("account_id None".into()))),
         }
-
-        let account_id = val["data"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|account| account["type"].as_str().unwrap() == account_type);
-        Ok(account_id.unwrap()["id"].as_i64().unwrap().to_string())
     }
 
     pub fn get_symbols(&self) -> APIResult<Vec<SymbolInfo>> {
         let uri = "/v1/common/symbols";
         let ret = self.get(&uri, "")?;
         let resp: Response<Vec<RawSymbolInfo>> = serde_json::from_str(&ret)?;
-        let symbols: Vec<SymbolInfo> = resp.data.iter().map(|symbol| {
-            symbol.clone().into() 
-        })
-        .collect::<Vec<SymbolInfo>>();
+        let symbols: Vec<SymbolInfo> = resp
+            .data
+            .into_iter()
+            .map(|symbol| symbol.into())
+            .collect::<Vec<SymbolInfo>>();
         Ok(symbols)
     }
 
@@ -199,58 +192,30 @@ impl Huobi {
     }
 }
 
-/*
 impl Spot for Huobi {
     fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook> {
         let uri = "/market/depth";
         let symbol = symbol.to_lowercase();
         let params = format!("symbol={}&depth={}&type=step0", symbol, depth);
         let ret = self.get(uri, &params)?;
-        let val: Value = serde_json::from_str(&ret)?;
-        // TODO: faster way to do this?
-        let asks = val["tick"]["asks"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|ask| Ask {
-                price: ask[0].as_f64().unwrap_or(0.0),
-                amount: ask[1].as_f64().unwrap_or(0.0),
-            })
-            .collect::<Vec<Ask>>();
-        let bids = val["tick"]["bids"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|bid| Bid {
-                price: bid[0].as_f64().unwrap_or(0.0),
-                amount: bid[1].as_f64().unwrap_or(0.0),
-            })
-            .collect::<Vec<Bid>>();
-
-        Ok(Orderbook {
-            timestamp: val["ts"].as_i64().unwrap_or(0) as u64,
-            asks,
-            bids,
-        })
+        let resp: Response<RawOrderbook> = serde_json::from_str(&ret)?;
+        let mut orderbook: Orderbook = resp.tick.into();
+        if orderbook.timestamp == 0 {
+            orderbook.timestamp = resp.ts;
+        }
+        Ok(orderbook)
     }
 
     fn get_ticker(&self, symbol: &str) -> APIResult<Ticker> {
         let uri = "/market/detail/merged";
         let params = format!("symbol={}", symbol.to_lowercase());
         let ret = self.get(uri, &params)?;
-        let val: Value = serde_json::from_str(&ret)?;
-
-        Ok(Ticker {
-            symbol: symbol.into(),
-            bid: Bid {
-                price: val["tick"]["bid"][0].as_f64().unwrap_or(0.0),
-                amount: val["tick"]["bid"][1].as_f64().unwrap_or(0.0),
-            },
-            ask: Ask {
-                price: val["tick"]["ask"][0].as_f64().unwrap_or(0.0),
-                amount: val["tick"]["ask"][1].as_f64().unwrap_or(0.0),
-            },
-        })
+        let resp: Response<RawTicker> = serde_json::from_str(&ret)?;
+        let mut ticker: Ticker = resp.tick.into();
+        if ticker.timestamp == 0 {
+            ticker.timestamp = resp.ts;
+        }
+        Ok(ticker)
     }
 
     fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
@@ -262,26 +227,18 @@ impl Spot for Huobi {
             limit
         );
         let ret = self.get(uri, &params)?;
-        let val: Value = serde_json::from_str(&ret)?;
-        let klines = val["data"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|kline| Kline {
-                timestamp: kline["id"].as_i64().unwrap_or(0) as u64,
-                open: kline["open"].as_f64().unwrap_or(0.0),
-                high: kline["high"].as_f64().unwrap_or(0.0),
-                low: kline["low"].as_f64().unwrap_or(0.0),
-                close: kline["close"].as_f64().unwrap_or(0.0),
-                volume: kline["vol"].as_f64().unwrap_or(0.0),
-            })
+        let resp: Response<Vec<RawKline>> = serde_json::from_str(&ret)?;
+        let klines = resp
+            .data
+            .into_iter()
+            .map(|kline| kline.into())
             .collect::<Vec<Kline>>();
-
         Ok(klines)
     }
 
     fn get_balance(&self, asset: &str) -> APIResult<Balance> {
-        let uri = format!("/v1/account/accounts/{}/balance", self.account_id);
+        unimplemented!()
+        /*let uri = format!("/v1/account/accounts/{}/balance", self.account_id);
         let params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
         let val: Value = serde_json::from_str(&ret)?;
@@ -314,6 +271,7 @@ impl Spot for Huobi {
                 }
             });
         Ok(balance)
+        */
     }
 
     fn create_order(
@@ -324,6 +282,8 @@ impl Spot for Huobi {
         action: &str,
         order_type: &str,
     ) -> APIResult<String> {
+        unimplemented!()
+        /*
         let uri = "/v1/order/orders/place";
         let params: BTreeMap<String, String> = BTreeMap::new();
         let mut body: BTreeMap<String, String> = BTreeMap::new();
@@ -339,28 +299,35 @@ impl Spot for Huobi {
         let val: Value = serde_json::from_str(&ret)?;
 
         Ok(val["data"].as_str().unwrap().to_string())
+        */
     }
 
     fn cancel(&self, id: &str) -> APIResult<bool> {
+        unimplemented!()
+        /*
         let uri = format!("/v1/order/orders/{}/submitcancel", id);
         let params: BTreeMap<String, String> = BTreeMap::new();
         let body: BTreeMap<String, String> = BTreeMap::new();
         let _ret = self.post_signed(&uri, params, &body)?;
         Ok(true)
+        */
     }
 
     fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
-        let uri = "/v1/order/orders/batchCancelOpenOrders";
+        unimplemented!()
+        /*let uri = "/v1/order/orders/batchCancelOpenOrders";
         let params: BTreeMap<String, String> = BTreeMap::new();
         let mut body: BTreeMap<String, String> = BTreeMap::new();
         body.insert("account-id".into(), self.account_id.clone());
         body.insert("symbol".into(), symbol.to_string().to_lowercase());
         let _ret = self.post_signed(uri, params, &body)?;
         Ok(true)
+        */
     }
 
     fn get_order(&self, id: &str) -> APIResult<Order> {
-        let uri = format!("/v1/order/orders/{}", id);
+        unimplemented!()
+        /*let uri = format!("/v1/order/orders/{}", id);
         let params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
         let val: Value = serde_json::from_str(&ret)?;
@@ -392,10 +359,12 @@ impl Spot for Huobi {
                 .unwrap_or(0.0),
             status,
         })
+        */
     }
 
     fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
-        let uri = "/v1/order/openOrders";
+        unimplemented!()
+        /*let uri = "/v1/order/openOrders";
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("account-id".into(), self.account_id.clone());
         params.insert("symbol".into(), symbol.to_string().to_lowercase());
@@ -437,9 +406,9 @@ impl Spot for Huobi {
             })
             .collect::<Vec<Order>>();
         Ok(orders)
+        */
     }
 }
-*/
 
 #[cfg(test)]
 mod test {
@@ -447,38 +416,10 @@ mod test {
     use super::*;
 
     const HOST: &'static str = "https://api.huobi.pro";
-    const API_KEY: &'static str = "e1a90fa3-ht4tgq1e4t-e02cdf4d-f7b94";
-    const SECRET_KEY: &'static str = "5d80336b-c8263ba7-c58bdc4e-ff5f0";
+    const API_KEY: &'static str = "2ed1ae8e-7015f4e4-85c65e29-edrfhh5h53";
+    const SECRET_KEY: &'static str = "259f957f-e568adb8-5b4e5a15-be8d6";
 
     /*
-    //#[test]
-    fn test_get_orderbook() {
-        let api = Huobi::new(None, None, HOST.into());
-        let ret = api.get_orderbook("BTCUSDT", 10);
-        println!("{:?}", ret);
-    }
-
-    //#[test]
-    fn test_get_ticker() {
-        let api = Huobi::new(None, None, HOST.into());
-        let ret = api.get_ticker("BTCUSDT");
-        println!("{:?}", ret);
-    }
-
-    //#[test]
-    fn test_get_kline() {
-        let api = Huobi::new(None, None, HOST.into());
-        let ret = api.get_kline("BTCUSDT", "15min", 10);
-        println!("{:?}", ret);
-    }
-
-    //#[test]
-    fn test_get_account_id() {
-        let api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
-        let acc_id = api.get_account_id("margin");
-        println!("margin_id: {:?}", acc_id);
-    }
-
     //#[test]
     fn test_get_balance() {
         let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
@@ -511,11 +452,39 @@ mod test {
         println!("order: {:?}", order);
     }
     */
-    
-    #[test]
+
+    //#[test]
     fn test_get_symbols() {
         let api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
         let symbols = api.get_symbols();
         println!("symbols: {:?}", symbols);
+    }
+
+    //#[test]
+    fn test_get_account_id() {
+        let api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
+        let acc_id = api.get_account_id("margin");
+        println!("margin_id: {:?}", acc_id);
+    }
+
+    //#[test]
+    fn test_get_orderbook() {
+        let api = Huobi::new(None, None, HOST.into());
+        let ret = api.get_orderbook("BTCUSDT", 10);
+        println!("{:?}", ret);
+    }
+
+    //#[test]
+    fn test_get_ticker() {
+        let api = Huobi::new(None, None, HOST.into());
+        let ret = api.get_ticker("BTCUSDT");
+        println!("{:?}", ret);
+    }
+
+    #[test]
+    fn test_get_kline() {
+        let api = Huobi::new(None, None, HOST.into());
+        let ret = api.get_kline("BTCUSDT", "15min", 10);
+        println!("{:?}", ret);
     }
 }

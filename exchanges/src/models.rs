@@ -63,7 +63,7 @@ pub struct Ask {
 
 #[derive(Debug)]
 pub struct Ticker {
-    pub symbol: String,
+    pub timestamp: u64,
     pub bid: Bid,
     pub ask: Ask,
 }
