@@ -156,3 +156,20 @@ impl From<RawKline> for Kline {
         }
     }
 }
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct BalanceInfoItem {
+    pub currency: String,
+    #[serde(rename = "type")]
+    pub ty: String,
+    pub balance: String,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct BalanceInfo {
+    pub id: u32,
+    #[serde(rename = "type")]
+    pub ty: String,
+    pub state: String,
+    pub list: Vec<BalanceInfoItem>,
+}

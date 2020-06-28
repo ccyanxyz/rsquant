@@ -237,41 +237,35 @@ impl Spot for Huobi {
     }
 
     fn get_balance(&self, asset: &str) -> APIResult<Balance> {
-        unimplemented!()
-        /*let uri = format!("/v1/account/accounts/{}/balance", self.account_id);
+        let uri = format!("/v1/account/accounts/{}/balance", self.account_id);
         let params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
-        let val: Value = serde_json::from_str(&ret)?;
+        let resp: Response<BalanceInfo> = serde_json::from_str(&ret)?;
 
         let mut balance = Balance {
             asset: asset.into(),
             free: 0.0,
             locked: 0.0,
         };
-        val["data"]["list"]
-            .as_array()
-            .unwrap()
+        resp.data.list
             .iter()
             .for_each(|item| {
-                if item["currency"].as_str().unwrap() == asset.to_lowercase() {
-                    if item["type"].as_str().unwrap() == "trade" {
-                        balance.free = item["balance"]
-                            .as_str()
-                            .unwrap()
+                if item.currency == asset.to_lowercase() {
+                    if item.ty == "trade" {
+                        balance.free = item.balance
                             .parse::<f64>()
-                            .unwrap_or(0.0);
+                            .expect("parse float error");
+                            //.unwrap_or(0.0);
                     }
-                    if item["type"].as_str().unwrap() == "frozen" {
-                        balance.locked = item["balance"]
-                            .as_str()
-                            .unwrap()
+                    if item.ty == "frozen" {
+                        balance.locked = item.balance
                             .parse::<f64>()
-                            .unwrap_or(0.0);
+                            .expect("parse float error");
+                            //.unwrap_or(0.0);
                     }
                 }
             });
         Ok(balance)
-        */
     }
 
     fn create_order(
@@ -421,15 +415,6 @@ mod test {
 
     /*
     //#[test]
-    fn test_get_balance() {
-        let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
-        let acc_id = api.get_account_id("super-margin").unwrap();
-        api.set_account("super-margin", &acc_id);
-        let ret = api.get_balance("BTC");
-        println!("{:?}", ret);
-    }
-
-    //#[test]
     fn test_orders() {
         let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
         // set account_id
@@ -481,10 +466,19 @@ mod test {
         println!("{:?}", ret);
     }
 
-    #[test]
+    //#[test]
     fn test_get_kline() {
         let api = Huobi::new(None, None, HOST.into());
         let ret = api.get_kline("BTCUSDT", "15min", 10);
+        println!("{:?}", ret);
+    }
+
+    //#[test]
+    fn test_get_balance() {
+        let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
+        let acc_id = api.get_account_id("super-margin").unwrap();
+        api.set_account("super-margin", &acc_id);
+        let ret = api.get_balance("USDT");
         println!("{:?}", ret);
     }
 }
