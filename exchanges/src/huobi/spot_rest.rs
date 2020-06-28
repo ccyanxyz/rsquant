@@ -247,24 +247,18 @@ impl Spot for Huobi {
             free: 0.0,
             locked: 0.0,
         };
-        resp.data.list
-            .iter()
-            .for_each(|item| {
-                if item.currency == asset.to_lowercase() {
-                    if item.ty == "trade" {
-                        balance.free = item.balance
-                            .parse::<f64>()
-                            .expect("parse float error");
-                            //.unwrap_or(0.0);
-                    }
-                    if item.ty == "frozen" {
-                        balance.locked = item.balance
-                            .parse::<f64>()
-                            .expect("parse float error");
-                            //.unwrap_or(0.0);
-                    }
+        resp.data.list.iter().for_each(|item| {
+            if item.currency == asset.to_lowercase() {
+                if item.ty == "trade" {
+                    balance.free = item.balance.parse::<f64>().expect("parse float error");
+                    //.unwrap_or(0.0);
                 }
-            });
+                if item.ty == "frozen" {
+                    balance.locked = item.balance.parse::<f64>().expect("parse float error");
+                    //.unwrap_or(0.0);
+                }
+            }
+        });
         Ok(balance)
     }
 
