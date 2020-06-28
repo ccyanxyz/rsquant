@@ -1,2 +1,0 @@
-cargo:rustc-env=TYPENUM_BUILD_CONSTS=/Users/cyan/Desktop/quant/rsquant/exchanges/target/debug/build/typenum-2a4416235416f170/out/consts.rs
-cargo:rustc-env=TYPENUM_BUILD_OP=/Users/cyan/Desktop/quant/rsquant/exchanges/target/debug/build/typenum-2a4416235416f170/out/op.rs
