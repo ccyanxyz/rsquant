@@ -1,4 +1,5 @@
 use crate::models::*;
+use crate::constant::*;
 use std::convert::Into;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -12,6 +13,12 @@ pub struct Response<T> {
     pub data: T,
     #[serde(default)]
     pub tick: T,
+    #[serde(default, rename = "err-code")]
+    pub err_code: String,
+    #[serde(default, rename = "err-msg")]
+    pub err_msg: String,
+    #[serde(default, rename = "order-state")]
+    pub order_state: i8,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -172,4 +179,54 @@ pub struct BalanceInfo {
     pub ty: String,
     pub state: String,
     pub list: Vec<BalanceInfoItem>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct RawOrderInfo {
+    pub id: u64,
+    pub symbol: String,
+    #[serde(rename = "account-id")]
+    pub account_id: u32,
+    pub price: String,
+    pub amount: String,
+    #[serde(rename = "created-at")]
+    pub create_at: u64,
+    #[serde(rename = "type")]
+    pub ty: String,
+    #[serde(alias = "filled-amount", alias = "field-amount")]
+    pub filled_amount: String,
+    #[serde(rename = "filled-cash-amount", alias = "field-cash-amount")]
+    pub filled_cash_amount: String,
+    #[serde(rename = "filled-fees", alias = "field-fees")]
+    pub filled_fees: String,
+    #[serde(default, rename = "finished-at")]
+    pub finished_at: u64,
+    #[serde(default, rename = "user-id")]
+    pub user_id: u32,
+    pub source: String,
+    pub state: String,
+    #[serde(default, rename = "canceled-at")]
+    pub canceled_at: u64,
+}
+
+impl From<RawOrderInfo> for Order {
+    fn from(item: RawOrderInfo) -> Order {
+        let status = match item.state.as_str() {
+            "partial-filled" => ORDER_STATUS_PART_FILLED,
+            "partial-canceled" => ORDER_STATUS_CANCELLED,
+            "filled" => ORDER_STATUS_FILLED,
+            "canceled" => ORDER_STATUS_CANCELLED,
+            "created" => ORDER_STATUS_SUBMITTED,
+            "submitted" => ORDER_STATUS_SUBMITTED,
+            _ => ORDER_STATUS_FAILED,
+       };
+        Order {
+            symbol: item.symbol,
+            order_id: item.id.to_string(),
+            amount: item.amount.parse::<f64>().unwrap_or(0.0),
+            price: item.price.parse::<f64>().unwrap_or(0.0),
+            filled: item.price.parse::<f64>().unwrap_or(0.0),
+            status: status
+        }
+    }
 }

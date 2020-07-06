@@ -270,8 +270,6 @@ impl Spot for Huobi {
         action: &str,
         order_type: &str,
     ) -> APIResult<String> {
-        unimplemented!()
-        /*
         let uri = "/v1/order/orders/place";
         let params: BTreeMap<String, String> = BTreeMap::new();
         let mut body: BTreeMap<String, String> = BTreeMap::new();
@@ -284,117 +282,54 @@ impl Spot for Huobi {
         body.insert("price".into(), price.to_string());
         body.insert("source".into(), self.account_type.clone() + "-api");
         let ret = self.post_signed(uri, params, &body)?;
-        let val: Value = serde_json::from_str(&ret)?;
+        let resp: Response<String> = serde_json::from_str(&ret)?;
 
-        Ok(val["data"].as_str().unwrap().to_string())
-        */
+        Ok(resp.data)
     }
 
     fn cancel(&self, id: &str) -> APIResult<bool> {
-        unimplemented!()
-        /*
         let uri = format!("/v1/order/orders/{}/submitcancel", id);
         let params: BTreeMap<String, String> = BTreeMap::new();
         let body: BTreeMap<String, String> = BTreeMap::new();
-        let _ret = self.post_signed(&uri, params, &body)?;
-        Ok(true)
-        */
+        let ret = self.post_signed(&uri, params, &body)?;
+        let resp: Response<String> = serde_json::from_str(&ret)?;
+        if resp.status == "ok" {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
-        unimplemented!()
-        /*let uri = "/v1/order/orders/batchCancelOpenOrders";
+        let uri = "/v1/order/orders/batchCancelOpenOrders";
         let params: BTreeMap<String, String> = BTreeMap::new();
         let mut body: BTreeMap<String, String> = BTreeMap::new();
         body.insert("account-id".into(), self.account_id.clone());
         body.insert("symbol".into(), symbol.to_string().to_lowercase());
         let _ret = self.post_signed(uri, params, &body)?;
         Ok(true)
-        */
     }
 
     fn get_order(&self, id: &str) -> APIResult<Order> {
-        unimplemented!()
-        /*let uri = format!("/v1/order/orders/{}", id);
+        let uri = format!("/v1/order/orders/{}", id);
         let params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
-        let val: Value = serde_json::from_str(&ret)?;
+        let resp: Response<RawOrderInfo> = serde_json::from_str(&ret)?;
 
-        let status: u8 = match val["data"]["state"].as_str() {
-            Some("submitted") => ORDER_STATUS_SUBMITTED,
-            Some("filled") => ORDER_STATUS_FILLED,
-            Some("partial-filled") => ORDER_STATUS_PART_FILLED,
-            Some("canceled") | Some("partial-canceled") => ORDER_STATUS_CANCELLED,
-            _ => ORDER_STATUS_FAILED,
-        };
-        Ok(Order {
-            symbol: val["data"]["symbol"].as_str().unwrap().into(),
-            order_id: val["data"]["id"].as_i64().unwrap().to_string(),
-            price: val["data"]["price"]
-                .as_str()
-                .unwrap()
-                .parse::<f64>()
-                .unwrap_or(0.0),
-            amount: val["data"]["amount"]
-                .as_str()
-                .unwrap()
-                .parse::<f64>()
-                .unwrap_or(0.0),
-            filled: val["data"]["field-amount"]
-                .as_str()
-                .unwrap()
-                .parse::<f64>()
-                .unwrap_or(0.0),
-            status,
-        })
-        */
+        Ok(resp.data.into())
     }
 
     fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
-        unimplemented!()
-        /*let uri = "/v1/order/openOrders";
+        let uri = "/v1/order/openOrders";
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("account-id".into(), self.account_id.clone());
         params.insert("symbol".into(), symbol.to_string().to_lowercase());
         let ret = self.get_signed(uri, params)?;
-        let val: Value = serde_json::from_str(&ret)?;
+        let resp: Response<Vec<RawOrderInfo>> = serde_json::from_str(&ret)?;
 
-        let orders = val["data"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|order| {
-                let status: u8 = match order["state"].as_str() {
-                    Some("submitted") => ORDER_STATUS_SUBMITTED,
-                    Some("filled") => ORDER_STATUS_FILLED,
-                    Some("partial-filled") => ORDER_STATUS_PART_FILLED,
-                    Some("canceled") | Some("partial-canceled") => ORDER_STATUS_CANCELLED,
-                    _ => ORDER_STATUS_FAILED,
-                };
-                Order {
-                    symbol: order["symbol"].as_str().unwrap().into(),
-                    order_id: order["id"].as_i64().unwrap().to_string(),
-                    price: order["price"]
-                        .as_str()
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap_or(0.0),
-                    amount: order["amount"]
-                        .as_str()
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap_or(0.0),
-                    filled: order["filled-amount"]
-                        .as_str()
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap_or(0.0),
-                    status,
-                }
-            })
-            .collect::<Vec<Order>>();
+        let orders = resp.data.into_iter().map(|raw_order| raw_order.into()).collect::<Vec<Order>>();
+
         Ok(orders)
-        */
     }
 }
 
@@ -406,31 +341,6 @@ mod test {
     const HOST: &'static str = "https://api.huobi.pro";
     const API_KEY: &'static str = "2ed1ae8e-7015f4e4-85c65e29-edrfhh5h53";
     const SECRET_KEY: &'static str = "259f957f-e568adb8-5b4e5a15-be8d6";
-
-    /*
-    //#[test]
-    fn test_orders() {
-        let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
-        // set account_id
-        let acc_id = api.get_account_id("super-margin").unwrap();
-        api.set_account("super-margin", &acc_id);
-
-        // create_order
-        let order_id = api.create_order("BTCUSDT", 10000.0, 0.01, "SELL", "LIMIT");
-        println!("order_id: {:?}", order_id);
-
-        // get_open_orders
-        let open_orders = api.get_open_orders("BTCUSDT");
-        println!("open_orders: {:?}", open_orders);
-
-        // cancel_all
-        let _ = api.cancel_all("BTCUSDT");
-
-        // get_order
-        let order = api.get_order(&order_id.unwrap());
-        println!("order: {:?}", order);
-    }
-    */
 
     //#[test]
     fn test_get_symbols() {
@@ -474,5 +384,28 @@ mod test {
         api.set_account("super-margin", &acc_id);
         let ret = api.get_balance("USDT");
         println!("{:?}", ret);
+    }
+    
+    #[test]
+    fn test_orders() {
+        let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
+        // set account_id
+        let acc_id = api.get_account_id("spot").unwrap();
+        api.set_account("spot", &acc_id);
+
+        // create_order
+        let order_id = api.create_order("NEXOBTC", 0.00002500, 100.0, "SELL", "LIMIT");
+        println!("order_id: {:?}", order_id);
+
+        // get_open_orders
+        let open_orders = api.get_open_orders("NEXOBTC");
+        println!("open_orders: {:?}", open_orders);
+
+        // cancel_all
+        let _ = api.cancel_all("NEXOBTC");
+
+        // get_order
+        let order = api.get_order(&order_id.unwrap());
+        println!("order: {:?}", order);
     }
 }
