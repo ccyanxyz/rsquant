@@ -327,7 +327,11 @@ impl Spot for Huobi {
         let ret = self.get_signed(uri, params)?;
         let resp: Response<Vec<RawOrderInfo>> = serde_json::from_str(&ret)?;
 
-        let orders = resp.data.into_iter().map(|raw_order| raw_order.into()).collect::<Vec<Order>>();
+        let orders = resp
+            .data
+            .into_iter()
+            .map(|raw_order| raw_order.into())
+            .collect::<Vec<Order>>();
 
         Ok(orders)
     }
@@ -385,7 +389,7 @@ mod test {
         let ret = api.get_balance("USDT");
         println!("{:?}", ret);
     }
-    
+
     #[test]
     fn test_orders() {
         let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());

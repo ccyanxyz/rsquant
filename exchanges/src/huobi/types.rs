@@ -1,5 +1,5 @@
-use crate::models::*;
 use crate::constant::*;
+use crate::models::*;
 use std::convert::Into;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -219,14 +219,14 @@ impl From<RawOrderInfo> for Order {
             "created" => ORDER_STATUS_SUBMITTED,
             "submitted" => ORDER_STATUS_SUBMITTED,
             _ => ORDER_STATUS_FAILED,
-       };
+        };
         Order {
             symbol: item.symbol,
             order_id: item.id.to_string(),
             amount: item.amount.parse::<f64>().unwrap_or(0.0),
             price: item.price.parse::<f64>().unwrap_or(0.0),
             filled: item.price.parse::<f64>().unwrap_or(0.0),
-            status: status
+            status: status,
         }
     }
 }
