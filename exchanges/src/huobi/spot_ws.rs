@@ -146,7 +146,7 @@ impl<'a> HuobiWs<'a> {
             }))
         } else if s.find("bbo") != None {
             Ok(WsEvent::TickerEvent(Ticker {
-                timestamp: val["tick"]["ts"].as_i64().unwrap_or(0) as u64,
+                timestamp: val["ts"].as_i64().unwrap_or(0) as u64,
                 bid: Bid {
                     price: val["tick"]["bid"].as_f64().unwrap_or(0.0),
                     amount: val["tick"]["bidSize"].as_f64().unwrap_or(0.0),
@@ -212,6 +212,8 @@ mod test {
 
     #[test]
     fn test_huobiws() {
+        env_logger::init();
+
         let handler = |event: WsEvent| {
             match event {
                 WsEvent::OrderbookEvent(e) => {
