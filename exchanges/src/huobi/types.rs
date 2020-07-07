@@ -1,7 +1,7 @@
 use crate::constant::*;
 use crate::models::*;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct Response<T> {
     pub status: String,
     #[serde(default)]
@@ -226,6 +226,28 @@ impl From<RawOrderInfo> for Order {
             price: item.price.parse::<f64>().unwrap_or(0.0),
             filled: item.price.parse::<f64>().unwrap_or(0.0),
             status,
+        }
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct RawTrade {
+    pub amount: f64,
+    pub ts: u64,
+    pub id: u128,
+    #[serde(rename = "tradeId")]
+    pub trade_id: u64,
+    pub price: f64,
+    pub direction: String,
+}
+
+impl From<RawTrade> for Trade {
+    fn from(item: RawTrade) -> Trade {
+        Trade {
+            timestamp: item.ts,
+            amount: item.amount,
+            price: item.price,
+            side: item.direction,
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::errors::*;
 use crate::models::*;
+use crate::huobi::types::*;
 use flate2::read::GzDecoder;
-use serde_json::Value;
 use std::io::prelude::*;
 use ws::{Handler, Handshake, Message, Result, Sender};
 
@@ -11,12 +11,12 @@ pub enum WsEvent {
     KlineEvent(Kline),
     TickerEvent(Ticker),
     TradeEvent(Vec<Trade>),
-    ResponseEvent(Response),
+    ResponseEvent(ResponseEvent),
     PingEvent(Ping),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Response {
+pub struct ResponseEvent {
     id: String,
     status: String,
     subbed: String,
@@ -107,67 +107,22 @@ impl<'a> HuobiWs<'a> {
             return Ok(WsEvent::PingEvent(ping));
         }
         if s.find("tick") == None {
-            let resp: Response = serde_json::from_str(s)?;
+            let resp: ResponseEvent = serde_json::from_str(s)?;
             return Ok(WsEvent::ResponseEvent(resp));
         }
-        let val: Value = serde_json::from_str(s)?;
+        //let val: Value = serde_json::from_str(s)?;
         if s.find("kline") != None {
-            Ok(WsEvent::KlineEvent(Kline {
-                timestamp: val["tick"]["id"].as_i64().unwrap_or(0) as u64,
-                open: val["tick"]["open"].as_f64().unwrap_or(0.0),
-                high: val["tick"]["high"].as_f64().unwrap_or(0.0),
-                low: val["tick"]["low"].as_f64().unwrap_or(0.0),
-                close: val["tick"]["close"].as_f64().unwrap_or(0.0),
-                volume: val["tick"]["vol"].as_f64().unwrap_or(0.0),
-            }))
+            let resp: Response<RawKline> = serde_json::from_str(&s)?;
+            Ok(WsEvent::KlineEvent(resp.tick.into()))
         } else if s.find("depth") != None {
-            let bids = val["tick"]["bids"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|bid| Bid {
-                    price: bid[0].as_f64().unwrap_or(0.0),
-                    amount: bid[1].as_f64().unwrap_or(0.0),
-                })
-                .collect::<Vec<Bid>>();
-            let asks = val["tick"]["asks"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|ask| Ask {
-                    price: ask[0].as_f64().unwrap_or(0.0),
-                    amount: ask[1].as_f64().unwrap_or(0.0),
-                })
-                .collect::<Vec<Ask>>();
-            Ok(WsEvent::OrderbookEvent(Orderbook {
-                timestamp: val["tick"]["ts"].as_i64().unwrap_or(0) as u64,
-                bids,
-                asks,
-            }))
+            let resp: Response<RawOrderbook> = serde_json::from_str(&s)?;
+            Ok(WsEvent::OrderbookEvent(resp.tick.into()))
         } else if s.find("bbo") != None {
-            Ok(WsEvent::TickerEvent(Ticker {
-                timestamp: val["ts"].as_i64().unwrap_or(0) as u64,
-                bid: Bid {
-                    price: val["tick"]["bid"].as_f64().unwrap_or(0.0),
-                    amount: val["tick"]["bidSize"].as_f64().unwrap_or(0.0),
-                },
-                ask: Ask {
-                    price: val["tick"]["ask"].as_f64().unwrap_or(0.0),
-                    amount: val["tick"]["askSize"].as_f64().unwrap_or(0.0),
-                },
-            }))
+            let resp: Response<RawTicker> = serde_json::from_str(&s)?;
+            Ok(WsEvent::TickerEvent(resp.tick.into()))
         } else if s.find("trade.detail") != None {
-            let trades = val["tick"]["data"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|trade| Trade {
-                    timestamp: trade["ts"].as_i64().unwrap_or(0) as u64,
-                    amount: trade["amount"].as_f64().unwrap_or(0.0),
-                    price: trade["price"].as_f64().unwrap_or(0.0),
-                    side: trade["direction"].as_str().unwrap().into(),
-                })
-                .collect::<Vec<Trade>>();
+            let resp: Response<Response<Vec<RawTrade>>> = serde_json::from_str(&s)?;
+            let trades = resp.tick.data.into_iter().map(|raw_trade| raw_trade.into()).collect::<Vec<Trade>>();
             Ok(WsEvent::TradeEvent(trades))
         } else {
             Err(Box::new(ExError::ApiError("msg channel not found".into())))
