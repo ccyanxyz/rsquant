@@ -1,4 +1,3 @@
-use crate::constant::*;
 use crate::errors::*;
 use crate::huobi::types::*;
 use crate::models::*;
@@ -390,7 +389,7 @@ mod test {
         println!("{:?}", ret);
     }
 
-    #[test]
+    //#[test]
     fn test_orders() {
         let mut api = Huobi::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
         // set account_id

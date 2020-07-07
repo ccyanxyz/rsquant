@@ -1,6 +1,5 @@
 use crate::constant::*;
 use crate::models::*;
-use std::convert::Into;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Response<T> {
@@ -100,8 +99,8 @@ impl From<RawOrderbook> for Orderbook {
             .collect::<Vec<Ask>>();
         Orderbook {
             timestamp: item.ts,
-            bids: bids,
-            asks: asks,
+            bids,
+            asks,
         }
     }
 }
@@ -226,7 +225,7 @@ impl From<RawOrderInfo> for Order {
             amount: item.amount.parse::<f64>().unwrap_or(0.0),
             price: item.price.parse::<f64>().unwrap_or(0.0),
             filled: item.price.parse::<f64>().unwrap_or(0.0),
-            status: status,
+            status,
         }
     }
 }

@@ -146,7 +146,7 @@ impl<'a> HuobiWs<'a> {
             }))
         } else if s.find("bbo") != None {
             Ok(WsEvent::TickerEvent(Ticker {
-                symbol: val["tick"]["symbol"].as_str().unwrap().into(),
+                timestamp: val["tick"]["ts"].as_i64().unwrap_or(0) as u64,
                 bid: Bid {
                     price: val["tick"]["bid"].as_f64().unwrap_or(0.0),
                     amount: val["tick"]["bidSize"].as_f64().unwrap_or(0.0),
@@ -210,7 +210,7 @@ mod test {
     use super::*;
     use crate::utils::get_timestamp;
 
-    //#[test]
+    #[test]
     fn test_huobiws() {
         let handler = |event: WsEvent| {
             match event {
