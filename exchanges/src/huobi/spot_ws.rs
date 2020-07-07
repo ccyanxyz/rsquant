@@ -98,7 +98,7 @@ impl<'a> HuobiWs<'a> {
             match &self.out {
                 Some(out) => {
                     let msg = format!("{{\"pong\":{}}}", ping.ping);
-                    out.send(msg.as_str());
+                    let _ = out.send(msg.as_str());
                 }
                 None => {
                     println!("self.out is None");
@@ -179,7 +179,7 @@ impl<'a> Handler for HuobiWs<'a> {
     fn on_open(&mut self, _shake: Handshake) -> Result<()> {
         match &self.out {
             Some(out) => self.subs.iter().for_each(|s| {
-                out.send(s.as_str());
+                let _ = out.send(s.as_str());
             }),
             None => {
                 println!("self.out is None");
@@ -195,7 +195,7 @@ impl<'a> Handler for HuobiWs<'a> {
         d.read_to_string(&mut s).unwrap();
         match self.deseralize(&s) {
             Ok(event) => {
-                (self.handler)(event);
+                let _ = (self.handler)(event);
             }
             Err(err) => {
                 println!("deseralize msg error: {:?}", err);
