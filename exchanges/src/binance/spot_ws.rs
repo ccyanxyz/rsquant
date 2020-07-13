@@ -25,7 +25,7 @@ pub enum WebsocketEvent {
     AccountUpdate(AccountUpdateEvent),
     OrderTrade(OrderTradeEvent),
     Trade(TradesEvent),
-    OrderBook(OrderBook),
+    OrderBook(RawOrderbook),
     DayTicker(Vec<DayTickerEvent>),
     Kline(KlineEvent),
     DepthOrderBook(DepthOrderBookEvent),
