@@ -1,6 +1,7 @@
 use crate::errors::*;
 use chrono::prelude::*;
 use percent_encoding::{define_encode_set, utf8_percent_encode, USERINFO_ENCODE_SET};
+use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn get_timestamp() -> APIResult<u64> {
@@ -19,6 +20,14 @@ pub fn percent_encode(source: &str) -> String {
         pub CUSTOM_ENCODE_SET = [USERINFO_ENCODE_SET] | { '+', ',' }
     }
     utf8_percent_encode(&source, CUSTOM_ENCODE_SET).to_string()
+}
+
+pub fn to_i64(v: &Value) -> i64 {
+    v.as_i64().unwrap()
+}
+
+pub fn to_f64(v: &Value) -> f64 {
+    v.as_str().unwrap().parse().unwrap()
 }
 
 #[cfg(test)]

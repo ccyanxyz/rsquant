@@ -1,6 +1,6 @@
 use crate::errors::*;
-use crate::models::*;
 use crate::huobi::types::*;
+use crate::models::*;
 use flate2::read::GzDecoder;
 use std::io::prelude::*;
 use ws::{Handler, Handshake, Message, Result, Sender};
@@ -122,7 +122,12 @@ impl<'a> HuobiWs<'a> {
             Ok(WsEvent::TickerEvent(resp.tick.into()))
         } else if s.find("trade.detail") != None {
             let resp: Response<Response<Vec<RawTrade>>> = serde_json::from_str(&s)?;
-            let trades = resp.tick.data.into_iter().map(|raw_trade| raw_trade.into()).collect::<Vec<Trade>>();
+            let trades = resp
+                .tick
+                .data
+                .into_iter()
+                .map(|raw_trade| raw_trade.into())
+                .collect::<Vec<Trade>>();
             Ok(WsEvent::TradeEvent(trades))
         } else {
             Err(Box::new(ExError::ApiError("msg channel not found".into())))
@@ -165,7 +170,7 @@ mod test {
     use super::*;
     use crate::utils::get_timestamp;
 
-    #[test]
+    //#[test]
     fn test_huobiws() {
         env_logger::init();
 

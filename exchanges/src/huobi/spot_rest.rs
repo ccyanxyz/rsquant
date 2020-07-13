@@ -1,7 +1,6 @@
 use crate::errors::*;
 use crate::huobi::types::*;
 use crate::models::*;
-use crate::traits::*;
 use crate::utils::*;
 
 use ring::{digest, hmac};
@@ -189,10 +188,8 @@ impl Huobi {
             .collect::<Vec<String>>()
             .join("&")
     }
-}
 
-impl Spot for Huobi {
-    fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook> {
+    pub fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook> {
         let uri = "/market/depth";
         let symbol = symbol.to_lowercase();
         let params = format!("symbol={}&depth={}&type=step0", symbol, depth);
@@ -205,7 +202,7 @@ impl Spot for Huobi {
         Ok(orderbook)
     }
 
-    fn get_ticker(&self, symbol: &str) -> APIResult<Ticker> {
+    pub fn get_ticker(&self, symbol: &str) -> APIResult<Ticker> {
         let uri = "/market/detail/merged";
         let params = format!("symbol={}", symbol.to_lowercase());
         let ret = self.get(uri, &params)?;
@@ -217,7 +214,7 @@ impl Spot for Huobi {
         Ok(ticker)
     }
 
-    fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
+    pub fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
         let uri = "/market/history/kline";
         let params = format!(
             "symbol={}&period={}&size={}",
@@ -235,7 +232,7 @@ impl Spot for Huobi {
         Ok(klines)
     }
 
-    fn get_balance(&self, asset: &str) -> APIResult<Balance> {
+    pub fn get_balance(&self, asset: &str) -> APIResult<Balance> {
         let uri = format!("/v1/account/accounts/{}/balance", self.account_id);
         let params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
@@ -261,7 +258,7 @@ impl Spot for Huobi {
         Ok(balance)
     }
 
-    fn create_order(
+    pub fn create_order(
         &self,
         symbol: &str,
         price: f64,
@@ -286,7 +283,7 @@ impl Spot for Huobi {
         Ok(resp.data)
     }
 
-    fn cancel(&self, id: &str) -> APIResult<bool> {
+    pub fn cancel(&self, id: &str) -> APIResult<bool> {
         let uri = format!("/v1/order/orders/{}/submitcancel", id);
         let params: BTreeMap<String, String> = BTreeMap::new();
         let body: BTreeMap<String, String> = BTreeMap::new();
@@ -299,7 +296,7 @@ impl Spot for Huobi {
         }
     }
 
-    fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
+    pub fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
         let uri = "/v1/order/orders/batchCancelOpenOrders";
         let params: BTreeMap<String, String> = BTreeMap::new();
         let mut body: BTreeMap<String, String> = BTreeMap::new();
@@ -309,7 +306,7 @@ impl Spot for Huobi {
         Ok(true)
     }
 
-    fn get_order(&self, id: &str) -> APIResult<Order> {
+    pub fn get_order(&self, id: &str) -> APIResult<Order> {
         let uri = format!("/v1/order/orders/{}", id);
         let params: BTreeMap<String, String> = BTreeMap::new();
         let ret = self.get_signed(&uri, params)?;
@@ -318,7 +315,7 @@ impl Spot for Huobi {
         Ok(resp.data.into())
     }
 
-    fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
+    pub fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
         let uri = "/v1/order/openOrders";
         let mut params: BTreeMap<String, String> = BTreeMap::new();
         params.insert("account-id".into(), self.account_id.clone());

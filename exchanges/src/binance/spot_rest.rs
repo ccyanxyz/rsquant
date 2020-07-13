@@ -1,7 +1,7 @@
+use crate::binance::types::*;
 use crate::constant::*;
 use crate::errors::*;
 use crate::models::*;
-use crate::traits::*;
 use crate::utils::*;
 
 use hex::encode as hex_encode;
@@ -190,15 +190,23 @@ impl Binance {
                 let body = resp.text()?;
                 Ok(body)
             }
-            s => {
-                Err(Box::new(ExError::ApiError(format!("response: {:?}", s))))
-            }
+            s => Err(Box::new(ExError::ApiError(format!("response: {:?}", s)))),
         }
     }
-}
 
-impl Spot for Binance {
-    fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook> {
+    pub fn get_symbols(&self) -> APIResult<Vec<SymbolInfo>> {
+        let uri = "/api/v3/exchangeInfo";
+        let ret = self.get(uri, "")?;
+        let resp: ExchangeInfo = serde_json::from_str(&ret)?;
+        let symbols = resp
+            .symbols
+            .into_iter()
+            .map(|symbol| symbol.into())
+            .collect::<Vec<SymbolInfo>>();
+        Ok(symbols)
+    }
+
+    pub fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_orderbook").unwrap()
         } else {
@@ -206,35 +214,11 @@ impl Spot for Binance {
         };
         let params = format!("symbol={}&limit={}", symbol, depth);
         let ret = self.get(uri, &params)?;
-        let val: Value = serde_json::from_str(&ret)?;
-        // TODO: faster way to do this?
-        let asks = val["asks"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|ask| Ask {
-                price: ask[0].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                amount: ask[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-            })
-            .collect::<Vec<Ask>>();
-        let bids = val["bids"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|bid| Bid {
-                price: bid[0].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                amount: bid[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-            })
-            .collect::<Vec<Bid>>();
-
-        Ok(Orderbook {
-            timestamp: val["lastUpdateId"].as_i64().unwrap_or(0) as u64,
-            asks,
-            bids,
-        })
+        let resp: RawOrderbook = serde_json::from_str(&ret)?;
+        Ok(resp.into())
     }
 
-    fn get_ticker(&self, symbol: &str) -> APIResult<Ticker> {
+    pub fn get_ticker(&self, symbol: &str) -> APIResult<Ticker> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_ticker").unwrap()
         } else {
@@ -242,38 +226,12 @@ impl Spot for Binance {
         };
         let params = format!("symbol={}", symbol);
         let ret = self.get(uri, &params)?;
-        let val: Value = serde_json::from_str(&ret)?;
+        let resp: RawTicker = serde_json::from_str(&ret)?;
 
-        Ok(Ticker {
-            symbol: val["symbol"].as_str().unwrap().into(),
-            bid: Bid {
-                price: val["bidPrice"]
-                    .as_str()
-                    .unwrap()
-                    .parse::<f64>()
-                    .unwrap_or(0.0),
-                amount: val["bidQty"]
-                    .as_str()
-                    .unwrap()
-                    .parse::<f64>()
-                    .unwrap_or(0.0),
-            },
-            ask: Ask {
-                price: val["askPrice"]
-                    .as_str()
-                    .unwrap()
-                    .parse::<f64>()
-                    .unwrap_or(0.0),
-                amount: val["askQty"]
-                    .as_str()
-                    .unwrap()
-                    .parse::<f64>()
-                    .unwrap_or(0.0),
-            },
-        })
+        Ok(resp.into())
     }
 
-    fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
+    pub fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_kline").unwrap()
         } else {
@@ -281,25 +239,23 @@ impl Spot for Binance {
         };
         let params = format!("symbol={}&interval={}&limit={}", symbol, period, limit);
         let ret = self.get(uri, &params)?;
-        let val: Value = serde_json::from_str(&ret)?;
-        let klines = val
-            .as_array()
-            .unwrap()
+        let resp: Vec<Vec<Value>> = serde_json::from_str(&ret)?;
+        let klines = resp
             .iter()
             .map(|kline| Kline {
-                timestamp: kline[0].as_i64().unwrap_or(0) as u64,
-                open: kline[1].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                high: kline[2].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                low: kline[3].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                close: kline[4].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-                volume: kline[5].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
+                timestamp: to_i64(&kline[0]) as u64,
+                open: to_f64(&kline[1]),
+                high: to_f64(&kline[2]),
+                low: to_f64(&kline[3]),
+                close: to_f64(&kline[4]),
+                volume: to_f64(&kline[5]),
             })
             .collect::<Vec<Kline>>();
 
         Ok(klines)
     }
 
-    fn get_balance(&self, asset: &str) -> APIResult<Balance> {
+    pub fn get_balance(&self, asset: &str) -> APIResult<Balance> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_balance").unwrap()
         } else {
@@ -309,6 +265,13 @@ impl Spot for Binance {
         let req = self.build_signed_request(params)?;
         let ret = self.get_signed(uri, &req)?;
         let val: Value = serde_json::from_str(&ret)?;
+        /*
+        let resp = if self.is_margin {
+            serde_json::from_str::<MarginAccountInfo>(&ret)?
+        } else {
+            serde_json::from_str::<AccountInfo>(&ret)?
+        }
+        */
 
         let idx = if self.is_margin {
             "userAssets"
@@ -337,7 +300,7 @@ impl Spot for Binance {
         })
     }
 
-    fn create_order(
+    pub fn create_order(
         &self,
         symbol: &str,
         price: f64,
@@ -359,12 +322,12 @@ impl Spot for Binance {
         params.insert("price".into(), price.to_string());
         let req = self.build_signed_request(params)?;
         let ret = self.post_signed(uri, &req)?;
-        let val: Value = serde_json::from_str(&ret)?;
+        let resp: OrderResult = serde_json::from_str(&ret)?;
 
-        Ok(val["orderId"].as_i64().unwrap().to_string())
+        Ok(resp.order_id.to_string())
     }
 
-    fn cancel(&self, id: &str) -> APIResult<bool> {
+    pub fn cancel(&self, id: &str) -> APIResult<bool> {
         let uri = if self.is_margin {
             MARGIN_URI.get("cancel").unwrap()
         } else {
@@ -377,7 +340,7 @@ impl Spot for Binance {
         Ok(true)
     }
 
-    fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
+    pub fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
         let uri = if self.is_margin {
             MARGIN_URI.get("cancel_all").unwrap()
         } else {
@@ -390,7 +353,7 @@ impl Spot for Binance {
         Ok(true)
     }
 
-    fn get_order(&self, id: &str) -> APIResult<Order> {
+    pub fn get_order(&self, id: &str) -> APIResult<Order> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_order").unwrap()
         } else {
@@ -400,34 +363,12 @@ impl Spot for Binance {
         params.insert("orderId".into(), id.into());
         let req = self.build_signed_request(params)?;
         let ret = self.get_signed(uri, &req)?;
-        let val: Value = serde_json::from_str(&ret)?;
+        let resp: RawOrder = serde_json::from_str(&ret)?;
 
-        let status: u8 = match val["status"].as_str() {
-            Some("NEW") => ORDER_STATUS_SUBMITTED,
-            Some("FILLED") => ORDER_STATUS_FILLED,
-            Some("PARTIALLY_FILLED") => ORDER_STATUS_PART_FILLED,
-            Some("CANCELLED") => ORDER_STATUS_CANCELLED,
-            _ => ORDER_STATUS_FAILED,
-        };
-        Ok(Order {
-            symbol: val["symbol"].as_str().unwrap().into(),
-            order_id: val["orderId"].as_i64().unwrap().to_string(),
-            price: val["price"].as_str().unwrap().parse::<f64>().unwrap_or(0.0),
-            amount: val["origQty"]
-                .as_str()
-                .unwrap()
-                .parse::<f64>()
-                .unwrap_or(0.0),
-            filled: val["executedQty"]
-                .as_str()
-                .unwrap()
-                .parse::<f64>()
-                .unwrap_or(0.0),
-            status,
-        })
+        Ok(resp.into())
     }
 
-    fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
+    pub fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_open_orders").unwrap()
         } else {
@@ -437,41 +378,11 @@ impl Spot for Binance {
         params.insert("symbol".into(), symbol.into());
         let req = self.build_signed_request(params)?;
         let ret = self.get_signed(uri, &req)?;
-        let val: Value = serde_json::from_str(&ret)?;
+        let resp: Vec<RawOrder> = serde_json::from_str(&ret)?;
 
-        let orders = val
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|order| {
-                let status: u8 = match val["status"].as_str() {
-                    Some("NEW") => ORDER_STATUS_SUBMITTED,
-                    Some("FILLED") => ORDER_STATUS_FILLED,
-                    Some("PARTIALLY_FILLED") => ORDER_STATUS_PART_FILLED,
-                    Some("CANCELLED") => ORDER_STATUS_CANCELLED,
-                    _ => ORDER_STATUS_FAILED,
-                };
-                Order {
-                    symbol: order["symbol"].as_str().unwrap().into(),
-                    order_id: order["orderId"].as_i64().unwrap().to_string(),
-                    price: order["price"]
-                        .as_str()
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap_or(0.0),
-                    amount: order["origQty"]
-                        .as_str()
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap_or(0.0),
-                    filled: order["executedQty"]
-                        .as_str()
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap_or(0.0),
-                    status,
-                }
-            })
+        let orders = resp
+            .into_iter()
+            .map(|order| order.into())
             .collect::<Vec<Order>>();
         Ok(orders)
     }
@@ -513,14 +424,14 @@ mod test {
     //#[test]
     fn test_get_balance() {
         let api = Binance::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
-        let ret = api.get_balance("BTC");
+        let ret = api.get_balance("ATOM");
         println!("{:?}", ret);
     }
 
     //#[test]
     fn test_create_order() {
         let api = Binance::new(Some(API_KEY.into()), Some(SECRET_KEY.into()), HOST.into());
-        let ret = api.create_order("BTCUSDT".into(), 9300.0, 0.01, "BUY", "LIMIT");
+        let ret = api.create_order("BTCUSDT".into(), 9000.0, 0.01, "BUY", "LIMIT");
         println!("{:?}", ret);
     }
 }
