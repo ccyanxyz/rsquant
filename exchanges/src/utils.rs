@@ -30,6 +30,10 @@ pub fn to_f64(v: &Value) -> f64 {
     v.as_str().unwrap().parse().unwrap()
 }
 
+pub fn str_to_f64(v: &str) -> f64 {
+    v.parse().unwrap()
+}
+
 #[cfg(test)]
 mod test {
     #![allow(dead_code)]
