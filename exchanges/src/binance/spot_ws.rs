@@ -7,8 +7,8 @@ use flate2::read::GzDecoder;
 use std::io::prelude::*;
 use ws::{Handler, Handshake, Message, Result, Sender};
 
-//static WEBSOCKET_URL: &'static str = "wss://stream.binance.com:9443/ws/";
-static WEBSOCKET_URL: &'static str = "wss://stream.binancezh.com:9443";
+static WEBSOCKET_URL: &'static str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
+//static WEBSOCKET_URL: &'static str = "wss://stream.binancezh.com:9443";
 
 static OUTBOUND_ACCOUNT_INFO: &'static str = "outboundAccountInfo";
 static EXECUTION_REPORT: &'static str = "executionReport";
@@ -37,7 +37,7 @@ pub enum WsEvent {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ResponseEvent {
     id: u64,
-    result: String,
+    result: Option<String>,
 }
 
 pub struct BinanceWs<'a> {
@@ -117,7 +117,7 @@ impl<'a> BinanceWs<'a> {
             let resp: KlineEvent = serde_json::from_str(&s)?;
             Ok(WsEvent::KlineEvent(resp.kline.into()))
         } else if s.find("lastUpdateId") != None {
-            let resp: DepthOrderbookEvent = serde_json::from_str(&s)?;
+            let resp: RawOrderbook = serde_json::from_str(&s)?;
             Ok(WsEvent::OrderbookEvent(resp.into()))
         } else if s.find("aggTrade") != None {
             let resp: TradeEvent = serde_json::from_str(&s)?;
@@ -145,11 +145,8 @@ impl<'a> Handler for BinanceWs<'a> {
     }
 
     fn on_message(&mut self, msg: Message) -> Result<()> {
-        let slice = &msg.into_data()[..];
-        let mut d = GzDecoder::new(slice);
-        let mut s = String::new();
-        d.read_to_string(&mut s).unwrap();
-        match self.deseralize(&s) {
+		//println!("{:?}", msg);
+        match self.deseralize(&msg.to_string()) {
             Ok(event) => {
                 let _ = (self.handler)(event);
             }
@@ -182,7 +179,10 @@ mod test {
             Ok(())
         };
         let mut binance = BinanceWs::new(WEBSOCKET_URL);
-        binance.sub_orderbook("BTCUSDT");
+        //binance.sub_orderbook("btcusdt");
+		binance.sub_ticker("btcusdt");
+		binance.sub_kline("btcusdt", "5m");
+		binance.sub_trade("btcusdt");
         binance.connect(handler);
     }
 }
