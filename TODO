@@ -1,3 +1,6 @@
+rest api重构：使用SpotRest trait
+ws api重构：使用SpotWs trait, sub_kline(..., callback: Option<Box<dyn FnMut(WsEvent) -> Result<()> + 'a>>)
+
 wsapi for binance
 future api for binance
 rest/ws api for huobi
