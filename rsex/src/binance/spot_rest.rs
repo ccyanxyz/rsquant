@@ -3,6 +3,7 @@ use crate::constant::*;
 use crate::errors::*;
 use crate::models::*;
 use crate::utils::*;
+use crate::traits::*;
 
 use hex::encode as hex_encode;
 use reqwest::blocking::Response;
@@ -205,8 +206,10 @@ impl Binance {
             .collect::<Vec<SymbolInfo>>();
         Ok(symbols)
     }
+}
 
-    pub fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook> {
+impl SpotRest for Binance {
+    fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_orderbook").unwrap()
         } else {
@@ -218,7 +221,7 @@ impl Binance {
         Ok(resp.into())
     }
 
-    pub fn get_ticker(&self, symbol: &str) -> APIResult<Ticker> {
+    fn get_ticker(&self, symbol: &str) -> APIResult<Ticker> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_ticker").unwrap()
         } else {
@@ -231,7 +234,7 @@ impl Binance {
         Ok(resp.into())
     }
 
-    pub fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
+    fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_kline").unwrap()
         } else {
@@ -255,7 +258,7 @@ impl Binance {
         Ok(klines)
     }
 
-    pub fn get_balance(&self, asset: &str) -> APIResult<Balance> {
+    fn get_balance(&self, asset: &str) -> APIResult<Balance> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_balance").unwrap()
         } else {
@@ -300,7 +303,7 @@ impl Binance {
         })
     }
 
-    pub fn create_order(
+    fn create_order(
         &self,
         symbol: &str,
         price: f64,
@@ -327,7 +330,7 @@ impl Binance {
         Ok(resp.order_id.to_string())
     }
 
-    pub fn cancel(&self, id: &str) -> APIResult<bool> {
+    fn cancel(&self, id: &str) -> APIResult<bool> {
         let uri = if self.is_margin {
             MARGIN_URI.get("cancel").unwrap()
         } else {
@@ -340,7 +343,7 @@ impl Binance {
         Ok(true)
     }
 
-    pub fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
+    fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
         let uri = if self.is_margin {
             MARGIN_URI.get("cancel_all").unwrap()
         } else {
@@ -353,7 +356,7 @@ impl Binance {
         Ok(true)
     }
 
-    pub fn get_order(&self, id: &str) -> APIResult<Order> {
+    fn get_order(&self, id: &str) -> APIResult<Order> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_order").unwrap()
         } else {
@@ -368,7 +371,7 @@ impl Binance {
         Ok(resp.into())
     }
 
-    pub fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
+    fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_open_orders").unwrap()
         } else {

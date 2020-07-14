@@ -12,7 +12,7 @@ extern crate lazy_static;
 pub mod constant;
 mod errors;
 pub mod models;
-//pub mod traits;
+pub mod traits;
 mod utils;
 
 pub mod binance;

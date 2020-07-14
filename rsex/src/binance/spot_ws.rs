@@ -1,6 +1,7 @@
 use crate::binance::types;
 use crate::errors::*;
 use crate::models::*;
+use crate::traits::*;
 use crate::binance::types::*;
 
 use flate2::read::GzDecoder;
@@ -74,40 +75,7 @@ impl<'a> BinanceWs<'a> {
         .unwrap();
     }
 
-    pub fn sub_kline(&mut self, symbol: &str, period: &str) {
-        self.subs.push(format!(
-            "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@kline_{}\"], \"id\": {}}}",
-            symbol.to_string().to_lowercase(),
-            period,
-            self.subs.len() + 1,
-        ));
-    }
-
-    pub fn sub_orderbook(&mut self, symbol: &str) {
-        self.subs.push(format!(
-            "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@depth20\"], \"id\": {}}}",
-            symbol.to_string().to_lowercase(),
-            self.subs.len() + 1,
-        ));
-    }
-
-    pub fn sub_trade(&mut self, symbol: &str) {
-        self.subs.push(format!(
-            "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@aggTrade\"], \"id\": {}}}",
-            symbol.to_string().to_lowercase(),
-            self.subs.len() + 1,
-        ));
-    }
-
-    pub fn sub_ticker(&mut self, symbol: &str) {
-        self.subs.push(format!(
-            "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@bookTicker\"], \"id\": {}}}",
-            symbol.to_string().to_lowercase(),
-            self.subs.len() + 1,
-        ));
-    }
-
-    pub fn deseralize(&self, s: &str) -> APIResult<WsEvent> {
+    fn deseralize(&self, s: &str) -> APIResult<WsEvent> {
         if s.find("result") != None {
             let resp: ResponseEvent = serde_json::from_str(s)?;
             return Ok(WsEvent::ResponseEvent(resp));
@@ -128,6 +96,45 @@ impl<'a> BinanceWs<'a> {
         } else {
             Err(Box::new(ExError::ApiError("msg channel not found".into())))
         }
+    }
+}
+
+impl<'a> SpotWs for BinanceWs<'a> {
+    fn sub_kline(&mut self, symbol: &str, period: &str) {
+        self.subs.push(format!(
+            "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@kline_{}\"], \"id\": {}}}",
+            symbol.to_string().to_lowercase(),
+            period,
+            self.subs.len() + 1,
+        ));
+    }
+
+    fn sub_orderbook(&mut self, symbol: &str) {
+        self.subs.push(format!(
+            "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@depth20\"], \"id\": {}}}",
+            symbol.to_string().to_lowercase(),
+            self.subs.len() + 1,
+        ));
+    }
+
+    fn sub_trade(&mut self, symbol: &str) {
+        self.subs.push(format!(
+            "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@aggTrade\"], \"id\": {}}}",
+            symbol.to_string().to_lowercase(),
+            self.subs.len() + 1,
+        ));
+    }
+
+    fn sub_ticker(&mut self, symbol: &str) {
+        self.subs.push(format!(
+            "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@bookTicker\"], \"id\": {}}}",
+            symbol.to_string().to_lowercase(),
+            self.subs.len() + 1,
+        ));
+    }
+
+    fn sub_order_update(&mut self, symbol: &str) {
+        unimplemented!()
     }
 }
 
