@@ -1,6 +1,8 @@
-use rsquant::platform::binance::Binance;
-use rsquant::traits::Spot;
+extern crate rsex;
+
 use std::env;
+use rsex::binance::spot_rest::Binance;
+use rsex::traits::SpotRest;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

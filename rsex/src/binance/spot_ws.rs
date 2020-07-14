@@ -11,16 +11,6 @@ use ws::{Handler, Handshake, Message, Result, Sender};
 static WEBSOCKET_URL: &'static str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
 //static WEBSOCKET_URL: &'static str = "wss://stream.binancezh.com:9443";
 
-static OUTBOUND_ACCOUNT_INFO: &'static str = "outboundAccountInfo";
-static EXECUTION_REPORT: &'static str = "executionReport";
-
-static KLINE: &'static str = "kline";
-static AGGREGATED_TRADE: &'static str = "aggTrade";
-static DEPTH_ORDERBOOK: &'static str = "depthUpdate";
-static PARTIAL_ORDERBOOK: &'static str = "lastUpdateId";
-
-static DAYTICKER: &'static str = "24hrTicker";
-
 #[derive(Debug)]
 pub enum WsEvent {
     // public stream
