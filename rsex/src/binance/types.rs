@@ -190,7 +190,7 @@ impl From<RawOrder> for Order {
             amount: item.orig_qty.parse::<f64>().unwrap_or(0.0),
             price: item.price,
             filled: item.executed_qty.parse::<f64>().unwrap_or(0.0),
-            status: status,
+            status,
         }
     }
 }
@@ -244,8 +244,8 @@ impl From<RawOrderbook> for Orderbook {
             .collect::<Vec<Ask>>();
         Orderbook {
             timestamp: item.last_update_id,
-            bids: bids,
-            asks: asks,
+            bids,
+            asks,
         }
     }
 }
@@ -716,8 +716,8 @@ impl From<DepthOrderbookEvent> for Orderbook {
             .collect::<Vec<Ask>>();
         Orderbook {
             timestamp: item.event_time,
-            bids: bids,
-            asks: asks,
+            bids,
+            asks,
         }
     }
 }

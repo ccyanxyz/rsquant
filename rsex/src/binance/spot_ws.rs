@@ -1,15 +1,11 @@
-use crate::binance::types;
 use crate::binance::types::*;
 use crate::errors::*;
 use crate::models::*;
 use crate::traits::*;
 
-use flate2::read::GzDecoder;
-use std::io::prelude::*;
 use ws::{Handler, Handshake, Message, Result, Sender};
 
-static WEBSOCKET_URL: &'static str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
-//static WEBSOCKET_URL: &'static str = "wss://stream.binancezh.com:9443";
+//static WEBSOCKET_URL: &str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
 
 #[derive(Debug)]
 pub enum WsEvent {
@@ -123,7 +119,7 @@ impl<'a> SpotWs for BinanceWs<'a> {
         ));
     }
 
-    fn sub_order_update(&mut self, symbol: &str) {
+    fn sub_order_update(&mut self, _symbol: &str) {
         unimplemented!()
     }
 }

@@ -1,5 +1,4 @@
 use crate::binance::types::*;
-use crate::constant::*;
 use crate::errors::*;
 use crate::models::*;
 use crate::traits::*;
