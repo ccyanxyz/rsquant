@@ -1,8 +1,8 @@
 use crate::binance::types;
+use crate::binance::types::*;
 use crate::errors::*;
 use crate::models::*;
 use crate::traits::*;
-use crate::binance::types::*;
 
 use flate2::read::GzDecoder;
 use std::io::prelude::*;
@@ -142,7 +142,7 @@ impl<'a> Handler for BinanceWs<'a> {
     }
 
     fn on_message(&mut self, msg: Message) -> Result<()> {
-		//println!("{:?}", msg);
+        //println!("{:?}", msg);
         match self.deseralize(&msg.to_string()) {
             Ok(event) => {
                 let _ = (self.handler)(event);
@@ -177,9 +177,9 @@ mod test {
         };
         let mut binance = BinanceWs::new(WEBSOCKET_URL);
         //binance.sub_orderbook("btcusdt");
-		binance.sub_ticker("btcusdt");
-		binance.sub_kline("btcusdt", "5m");
-		binance.sub_trade("btcusdt");
+        binance.sub_ticker("btcusdt");
+        binance.sub_kline("btcusdt", "5m");
+        binance.sub_trade("btcusdt");
         binance.connect(handler);
     }
 }

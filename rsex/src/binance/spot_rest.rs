@@ -2,8 +2,8 @@ use crate::binance::types::*;
 use crate::constant::*;
 use crate::errors::*;
 use crate::models::*;
-use crate::utils::*;
 use crate::traits::*;
+use crate::utils::*;
 
 use hex::encode as hex_encode;
 use reqwest::blocking::Response;

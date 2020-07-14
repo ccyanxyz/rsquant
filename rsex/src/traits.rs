@@ -46,7 +46,7 @@ pub trait SpotWs {
     fn sub_kline(&mut self, symbol: &str, period: &str);
     fn sub_ticker(&mut self, symbol: &str);
     fn sub_trade(&mut self, symbol: &str);
-    
+
     fn sub_order_update(&mut self, symbol: &str);
 }
 
@@ -55,6 +55,6 @@ pub trait FutureWs {
     fn sub_kline(&self, symbol: &str, period: &str);
     fn sub_ticker(&self, symbol: &str);
     fn sub_trade(&self, symbol: &str);
-    
+
     fn sub_order_update(&self, symbol: &str);
 }
