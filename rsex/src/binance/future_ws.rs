@@ -5,7 +5,7 @@ use crate::traits::*;
 
 use ws::{Handler, Handshake, Message, Result, Sender};
 
-static WEBSOCKET_URL: &str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
+//static WEBSOCKET_URL: &str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
 
 #[derive(Debug)]
 pub enum WsEvent {
@@ -61,17 +61,6 @@ impl<'a> BinanceWs<'a> {
         .unwrap();
     }
 
-    fn send(&self, msg: &str) {
-        match &self.out {
-            Some(out) => {
-                let _ = out.send(msg);
-            },
-            None => {
-                println!("self.out is None");
-            }
-        }
-    }
-
     fn deseralize(&self, s: &str) -> APIResult<WsEvent> {
         if s.find("result") != None {
             let resp: ResponseEvent = serde_json::from_str(s)?;
@@ -98,44 +87,36 @@ impl<'a> BinanceWs<'a> {
 
 impl<'a> SpotWs for BinanceWs<'a> {
     fn sub_kline(&mut self, symbol: &str, period: &str) {
-        let msg = format!(
+        self.subs.push(format!(
             "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@kline_{}\"], \"id\": {}}}",
             symbol.to_string().to_lowercase(),
             period,
             self.subs.len() + 1,
-        );
-        self.send(msg.as_str());
-        self.subs.push(msg);
+        ));
     }
 
     fn sub_orderbook(&mut self, symbol: &str) {
-        let msg = format!(
+        self.subs.push(format!(
             "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@depth20\"], \"id\": {}}}",
             symbol.to_string().to_lowercase(),
             self.subs.len() + 1,
-        );
-        self.send(msg.as_str());
-        self.subs.push(msg);
+        ));
     }
 
     fn sub_trade(&mut self, symbol: &str) {
-        let msg = format!(
+        self.subs.push(format!(
             "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@aggTrade\"], \"id\": {}}}",
             symbol.to_string().to_lowercase(),
             self.subs.len() + 1,
-        );
-        self.send(msg.as_str());
-        self.subs.push(msg);
+        ));
     }
 
     fn sub_ticker(&mut self, symbol: &str) {
-        let msg = format!(
+        self.subs.push(format!(
             "{{\"method\": \"SUBSCRIBE\", \"params\": [\"{}@bookTicker\"], \"id\": {}}}",
             symbol.to_string().to_lowercase(),
             self.subs.len() + 1,
-        );
-        self.send(msg.as_str());
-        self.subs.push(msg);
+        ));
     }
 
     fn sub_order_update(&mut self, _symbol: &str) {
@@ -146,14 +127,9 @@ impl<'a> SpotWs for BinanceWs<'a> {
 impl<'a> Handler for BinanceWs<'a> {
     fn on_open(&mut self, _shake: Handshake) -> Result<()> {
         match &self.out {
-            /*
             Some(out) => self.subs.iter().for_each(|s| {
                 let _ = out.send(s.as_str());
             }),
-            */
-            Some(out) => {
-                println!("ws connected");
-            },
             None => {
                 println!("self.out is None");
             }
@@ -196,10 +172,10 @@ mod test {
             Ok(())
         };
         let mut binance = BinanceWs::new(WEBSOCKET_URL);
-        binance.connect(handler);
         //binance.sub_orderbook("btcusdt");
         binance.sub_ticker("btcusdt");
         binance.sub_kline("btcusdt", "5m");
         binance.sub_trade("btcusdt");
+        binance.connect(handler);
     }
 }

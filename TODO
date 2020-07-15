@@ -2,3 +2,9 @@ rest api重构：使用SpotRest trait
 ws api重构：使用SpotWs trait, sub_kline(..., callback: Option<Box<dyn FnMut(WsEvent) -> Result<()> + 'a>>)
 
 future rest/ws api for binance/huobi
+
+
+1.交易所api对接 spot future swap
+2.策略编写框架 rest策略 ws策略
+3.回测框架
+4.策略运行管理

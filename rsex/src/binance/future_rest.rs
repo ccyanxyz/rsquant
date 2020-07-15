@@ -1,4 +1,4 @@
-use crate::binance::types as bn_types;
+use crate::binance::types::*;
 use crate::errors::*;
 use crate::models::*;
 use crate::traits::*;
@@ -12,59 +12,20 @@ use ring::{digest, hmac};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 
-lazy_static! {
-    static ref SPOT_URI: HashMap::<&'static str, &'static str> = {
-        let mut map = HashMap::new();
-        map.insert("get_orderbook", "/api/v3/depth");
-        map.insert("get_ticker", "/api/v3/ticker/bookTicker");
-        map.insert("get_kline", "/api/v3/klines");
-        map.insert("get_balance", "/api/v3/account");
-        map.insert("create_order", "/api/v3/order");
-        map.insert("cancel", "/api/v3/order");
-        map.insert("cancel_all", "/api/v3/openOrders");
-        map.insert("get_order", "/api/v3/order");
-        map.insert("get_open_orders", "/api/v3/openOrders");
-        map
-    };
-    static ref MARGIN_URI: HashMap::<&'static str, &'static str> = {
-        let mut map = HashMap::new();
-        map.insert("get_orderbook", "/api/v3/depth");
-        map.insert("get_ticker", "/api/v3/ticker/bookTicker");
-        map.insert("get_kline", "/api/v3/klines");
-        map.insert("get_balance", "/sapi/v1/margin/account");
-        map.insert("create_order", "/sapi/v1/margin/order");
-        map.insert("cancel", "/sapi/v1/margin/order");
-        map.insert("cancel_all", "/sapi/v1/margin/openOrders"); // maybe not exist
-        map.insert("get_order", "/sapi/v1/margin/order");
-        map.insert("get_open_orders", "/sapi/v1/margin/openOrders");
-        map
-    };
-}
-
 #[derive(Clone)]
-pub struct Binance {
+pub struct BinanceSwap {
     api_key: String,
     secret_key: String,
-    host: String,
-    is_margin: bool,
+    host: String, // https://fapi.binance.com
 }
 
-impl Binance {
+impl BinanceSwap {
     pub fn new(api_key: Option<String>, secret_key: Option<String>, host: String) -> Self {
-        Binance {
+        BinanceSwap {
             api_key: api_key.unwrap_or_else(|| "".into()),
             secret_key: secret_key.unwrap_or_else(|| "".into()),
             host,
-            is_margin: false,
         }
-    }
-
-    pub fn set_margin(&mut self) {
-        self.is_margin = true;
-    }
-
-    pub fn set_spot(&mut self) {
-        self.is_margin = false;
     }
 
     pub fn get(&self, endpoint: &str, request: &str) -> APIResult<String> {
@@ -197,7 +158,7 @@ impl Binance {
     pub fn get_symbols(&self) -> APIResult<Vec<SymbolInfo>> {
         let uri = "/api/v3/exchangeInfo";
         let ret = self.get(uri, "")?;
-        let resp: bn_types::ExchangeInfo = serde_json::from_str(&ret)?;
+        let resp: ExchangeInfo = serde_json::from_str(&ret)?;
         let symbols = resp
             .symbols
             .into_iter()
@@ -205,8 +166,10 @@ impl Binance {
             .collect::<Vec<SymbolInfo>>();
         Ok(symbols)
     }
+}
 
-    pub fn get_orderbook_raw(&self, symbol: &str, depth: u8) -> APIResult<bn_types::RawOrderbook> {
+impl SpotRest for Binance {
+    fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_orderbook").unwrap()
         } else {
@@ -214,11 +177,11 @@ impl Binance {
         };
         let params = format!("symbol={}&limit={}", symbol, depth);
         let ret = self.get(uri, &params)?;
-        let resp: bn_types::RawOrderbook = serde_json::from_str(&ret)?;
-        Ok(resp)
+        let resp: RawOrderbook = serde_json::from_str(&ret)?;
+        Ok(resp.into())
     }
 
-    pub fn get_ticker_raw(&self, symbol: &str) -> APIResult<bn_types::RawTicker> {
+    fn get_ticker(&self, symbol: &str) -> APIResult<Ticker> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_ticker").unwrap()
         } else {
@@ -226,12 +189,12 @@ impl Binance {
         };
         let params = format!("symbol={}", symbol);
         let ret = self.get(uri, &params)?;
-        let resp: bn_types::RawTicker = serde_json::from_str(&ret)?;
+        let resp: RawTicker = serde_json::from_str(&ret)?;
 
-        Ok(resp)
+        Ok(resp.into())
     }
 
-    pub fn get_kline_raw(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
+    fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_kline").unwrap()
         } else {
@@ -255,7 +218,7 @@ impl Binance {
         Ok(klines)
     }
 
-    pub fn get_balance_raw(&self, asset: &str) -> APIResult<Balance> {
+    fn get_balance(&self, asset: &str) -> APIResult<Balance> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_balance").unwrap()
         } else {
@@ -300,7 +263,7 @@ impl Binance {
         })
     }
 
-    pub fn create_order_raw(
+    fn create_order(
         &self,
         symbol: &str,
         price: f64,
@@ -322,12 +285,12 @@ impl Binance {
         params.insert("price".into(), price.to_string());
         let req = self.build_signed_request(params)?;
         let ret = self.post_signed(uri, &req)?;
-        let resp: bn_types::OrderResult = serde_json::from_str(&ret)?;
+        let resp: OrderResult = serde_json::from_str(&ret)?;
 
         Ok(resp.order_id.to_string())
     }
 
-    pub fn cancel_raw(&self, id: &str) -> APIResult<bool> {
+    fn cancel(&self, id: &str) -> APIResult<bool> {
         let uri = if self.is_margin {
             MARGIN_URI.get("cancel").unwrap()
         } else {
@@ -340,7 +303,7 @@ impl Binance {
         Ok(true)
     }
 
-    pub fn cancel_all_raw(&self, symbol: &str) -> APIResult<bool> {
+    fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
         let uri = if self.is_margin {
             MARGIN_URI.get("cancel_all").unwrap()
         } else {
@@ -353,7 +316,7 @@ impl Binance {
         Ok(true)
     }
 
-    pub fn get_order_raw(&self, id: &str) -> APIResult<bn_types::RawOrder> {
+    fn get_order(&self, id: &str) -> APIResult<Order> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_order").unwrap()
         } else {
@@ -363,12 +326,12 @@ impl Binance {
         params.insert("orderId".into(), id.into());
         let req = self.build_signed_request(params)?;
         let ret = self.get_signed(uri, &req)?;
-        let resp: bn_types::RawOrder = serde_json::from_str(&ret)?;
+        let resp: RawOrder = serde_json::from_str(&ret)?;
 
-        Ok(resp)
+        Ok(resp.into())
     }
 
-    pub fn get_open_orders_raw(&self, symbol: &str) -> APIResult<Vec<bn_types::RawOrder>> {
+    fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_open_orders").unwrap()
         } else {
@@ -378,51 +341,12 @@ impl Binance {
         params.insert("symbol".into(), symbol.into());
         let req = self.build_signed_request(params)?;
         let ret = self.get_signed(uri, &req)?;
-        let resp: Vec<bn_types::RawOrder> = serde_json::from_str(&ret)?;
+        let resp: Vec<RawOrder> = serde_json::from_str(&ret)?;
 
-        Ok(resp)
-    }
-}
-
-impl SpotRest for Binance {
-    fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook> {
-        let raw = self.get_orderbook_raw(symbol, depth)?;
-        Ok(raw.into())
-    }
-
-    fn get_ticker(&self, symbol: &str) -> APIResult<Ticker> {
-        let raw = self.get_ticker_raw(symbol)?;
-        Ok(raw.into())
-    }
-
-    fn get_kline(&self, symbol: &str, period: &str, limit: u16) -> APIResult<Vec<Kline>> {
-        self.get_kline_raw(symbol, period, limit)
-    }
-
-    fn get_balance(&self, asset: &str) -> APIResult<Balance> {
-        self.get_balance_raw(asset)
-    }
-
-    fn create_order(&self, symbol: &str, price: f64, amount: f64, action: &str, order_type: &str) -> APIResult<String> {
-        self.create_order_raw(symbol, price, amount, action, order_type)
-    }
-
-    fn cancel(&self, id: &str) -> APIResult<bool> {
-        self.cancel_raw(id)
-    }
-    
-    fn cancel_all(&self, symbol: &str) -> APIResult<bool> {
-        self.cancel_all_raw(symbol)
-    }
-
-    fn get_order(&self, id: &str) -> APIResult<Order> {
-        let raw = self.get_order_raw(id)?;
-        Ok(raw.into())
-    }
-
-    fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
-        let raw = self.get_open_orders_raw(symbol)?;
-        let orders = raw.into_iter().map(|order| order.into()).collect::<Vec<Order>>();
+        let orders = resp
+            .into_iter()
+            .map(|order| order.into())
+            .collect::<Vec<Order>>();
         Ok(orders)
     }
 }

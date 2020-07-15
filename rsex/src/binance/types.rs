@@ -16,6 +16,7 @@ pub struct ExchangeInfo {
     pub rate_limits: Vec<RateLimit>,
     pub symbols: Vec<Symbol>,
 }
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RateLimit {
@@ -23,6 +24,7 @@ pub struct RateLimit {
     pub interval: String,
     pub limit: u64,
 }
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Symbol {
@@ -38,6 +40,7 @@ pub struct Symbol {
     pub is_margin_trading_allowed: bool,
     pub filters: Vec<Filters>,
 }
+
 impl From<Symbol> for SymbolInfo {
     fn from(item: Symbol) -> SymbolInfo {
         SymbolInfo {
@@ -51,6 +54,7 @@ impl From<Symbol> for SymbolInfo {
         }
     }
 }
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "filterType")]
 pub enum Filters {
