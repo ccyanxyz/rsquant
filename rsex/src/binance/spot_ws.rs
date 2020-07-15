@@ -3,6 +3,7 @@ use crate::errors::*;
 use crate::models::*;
 use crate::traits::*;
 
+use log::{info, warn};
 use ws::{Handler, Handshake, Message, Result, Sender};
 
 static WEBSOCKET_URL: &str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
@@ -42,7 +43,7 @@ impl<'a> BinanceWs<'a> {
             subs: vec![],
             out: None,
             handler: Box::new(|event| {
-                println!("event: {:?}", event);
+                info!("event: {:?}", event);
                 Ok(())
             }),
         }
@@ -67,7 +68,7 @@ impl<'a> BinanceWs<'a> {
                 let _ = out.send(msg);
             },
             None => {
-                println!("self.out is None");
+                warn!("self.out is None");
             }
         }
     }
@@ -151,11 +152,11 @@ impl<'a> Handler for BinanceWs<'a> {
                 let _ = out.send(s.as_str());
             }),
             */
-            Some(out) => {
-                println!("ws connected");
+            Some(_) => {
+                info!("ws connected");
             },
             None => {
-                println!("self.out is None");
+                warn!("self.out is None");
             }
         }
         Ok(())
@@ -168,7 +169,7 @@ impl<'a> Handler for BinanceWs<'a> {
                 let _ = (self.handler)(event);
             }
             Err(err) => {
-                println!("deseralize msg error: {:?}", err);
+                warn!("deseralize msg error: {:?}", err);
             }
         }
         Ok(())
@@ -187,10 +188,10 @@ mod test {
         let handler = |event: WsEvent| {
             match event {
                 WsEvent::OrderbookEvent(e) => {
-                    println!("orderbook: {:?}", e);
+                    info!("orderbook: {:?}", e);
                 }
                 _ => {
-                    println!("event: {:?}", event);
+                    info!("event: {:?}", event);
                 }
             }
             Ok(())

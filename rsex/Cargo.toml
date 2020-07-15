@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 env_logger = "0.7.1"
+log = "0.4.8"
 ws = { version = "0.9.1", features = ["ssl"]}
 flate2 = "1.0"
 lazy_static = "1.4.0"
