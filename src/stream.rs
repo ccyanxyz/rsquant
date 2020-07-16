@@ -26,6 +26,6 @@ fn main() {
 
     let url = "wss://stream.binancezh.com:9443/ws/btcusdt@depth20";
     let mut ws = BinanceWs::new(url.into());
-    ws.sub_ticker(&symbol);
     ws.connect(handler);
+    ws.sub_ticker(&symbol);
 }
