@@ -15,6 +15,8 @@ pub trait SpotRest {
     fn cancel_all(&self, symbol: &str) -> APIResult<bool>;
     fn get_order(&self, id: &str) -> APIResult<Order>;
     fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>>;
+    fn get_history_orders(&self, symbol: &str) -> APIResult<Vec<Order>>;
+
 
     fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook>;
     fn get_ticker(&self, symbol: &str) -> APIResult<Ticker>;
@@ -35,6 +37,7 @@ pub trait FutureRest {
     fn cancel_all(&self, symbol: &str) -> APIResult<bool>;
     fn get_order(&self, id: &str) -> APIResult<Order>;
     fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>>;
+    fn get_history_orders(&self, symbol: &str) -> APIResult<Vec<Order>>;
 
     fn get_orderbook(&self, symbol: &str, depth: u8) -> APIResult<Orderbook>;
     fn get_ticker(&self, symbol: &str) -> APIResult<Ticker>;

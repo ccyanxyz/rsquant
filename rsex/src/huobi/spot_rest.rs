@@ -331,6 +331,10 @@ impl Huobi {
 
         Ok(orders)
     }
+
+    pub fn get_history_orders(&self, _symbol: &str) -> APIResult<Vec<Order>> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]

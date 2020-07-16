@@ -382,6 +382,22 @@ impl Binance {
 
         Ok(resp)
     }
+
+    pub fn get_history_orders_raw(&self, symbol: &str) -> APIResult<Vec<bn_types::RawOrder>> {
+        let uri = "/api/v3/allOrders";
+        let mut params: BTreeMap<String, String> = BTreeMap::new();
+        params.insert("symbol".into(), symbol.into());
+        let req = self.build_signed_request(params)?;
+        let ret = self.get_signed(uri, &req)?;
+        let resp: Vec<bn_types::RawOrder> = serde_json::from_str(&ret)?;
+        let mut history_orders = resp.into_iter().filter(|order| {
+            order.status == "FILLED" || order.status == "CANCELED"
+        })
+        .collect::<Vec<bn_types::RawOrder>>();
+        history_orders.sort_by(|a, b| b.time.cmp(&a.time));
+
+        Ok(history_orders)
+    }
 }
 
 impl SpotRest for Binance {
@@ -422,6 +438,12 @@ impl SpotRest for Binance {
 
     fn get_open_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
         let raw = self.get_open_orders_raw(symbol)?;
+        let orders = raw.into_iter().map(|order| order.into()).collect::<Vec<Order>>();
+        Ok(orders)
+    }
+
+    fn get_history_orders(&self, symbol: &str) -> APIResult<Vec<Order>> {
+        let raw = self.get_history_orders_raw(symbol)?;
         let orders = raw.into_iter().map(|order| order.into()).collect::<Vec<Order>>();
         Ok(orders)
     }
