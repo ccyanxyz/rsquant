@@ -92,7 +92,7 @@ pub enum Filters {
     #[serde(rename = "MAX_NUM_ALGO_ORDERS")]
     #[serde(rename_all = "camelCase")]
     MaxNumAlgoOrders { max_num_algo_orders: u16 },
-    #[serde(rename = "MAX_NUM_ALGO_ORDERS")]
+    #[serde(rename = "MAX_NUM_ORDERS")]
     #[serde(rename_all = "camelCase")]
     MaxNumOrders { max_num_orders: u16 },
     #[serde(rename = "MARKET_LOT_SIZE")]
@@ -196,6 +196,7 @@ impl From<RawOrder> for Order {
             order_id: item.order_id.to_string(),
             amount: item.orig_qty.parse::<f64>().unwrap_or(0.0),
             price: item.price,
+            side: item.side.to_uppercase(),
             filled: item.executed_qty.parse::<f64>().unwrap_or(0.0),
             status,
         }

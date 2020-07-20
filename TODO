@@ -3,6 +3,7 @@ ws api重构：使用SpotWs trait, sub_kline(..., callback: Option<Box<dyn FnMut
 
 future rest/ws api for binance/huobi
 
+FIXME
 
 1.交易所api对接 spot future swap
 2.策略编写框架 rest策略 ws策略

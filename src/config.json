@@ -1,11 +1,13 @@
 {
-	"host": "https://www.binancezh.com",
+	"host": "https://www.binance.com",
 	"apikey": "N9QAtGjFuNXDAnvMlidLzfvGargt54mKQuQbzyafO2hg5Hr8YNHV1e2Jfavi44nK",
 	"secret_key": "lCuul7mVApKczbGJBrAgqEIWTWwbQ1BTMBPJyvK19q2BNmlsd5718cAWWByNuY5N",
 
 	"quote": "usdt",
 
 	"ignore":["btc", "eth", "bnb"],
+
+	"min_value": 10,
 
 	"stop_loss": -0.1,
 	"start_move_stoploss": 0.1

@@ -30,6 +30,7 @@ pub struct Order {
     pub order_id: String,
     pub amount: f64,
     pub price: f64,
+    pub side: String,
     pub filled: f64,
     pub status: u8,
 }

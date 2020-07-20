@@ -3,7 +3,7 @@ extern crate log;
 extern crate rsex;
 extern crate serde_json;
 
-use log::{info, warn};
+use log::{info, warn, debug};
 use rsex::binance::spot_rest::Binance;
 use rsex::errors::APIResult;
 use rsex::models::SymbolInfo;
@@ -13,15 +13,6 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::{thread, time};
-
-#[derive(Debug)]
-struct Config {
-    watch_all: bool,
-    watch_list: Vec<String>,
-    ignore: Vec<String>,
-    stop_loss: f64,
-    start_move_stoploss: f64,
-}
 
 #[derive(Debug, Clone)]
 struct Position {
@@ -57,9 +48,10 @@ impl MoveStopLoss {
     pub fn get_symbols(&self) -> APIResult<Vec<SymbolInfo>> {
         let quote = self.config["quote"].as_str().unwrap();
         let symbol_info = self.client.get_symbols()?;
+        debug!("client.get_symbols: {:?}", symbol_info);
         let symbol_info = symbol_info
             .into_iter()
-            .filter(|symbol| symbol.quote == quote)
+            .filter(|symbol| symbol.quote.to_lowercase() == quote)
             .collect();
         Ok(symbol_info)
     }
@@ -67,6 +59,7 @@ impl MoveStopLoss {
     pub fn init(&mut self) {
         // set watch_list
         let ret = self.get_symbols();
+        debug!("get_symbols: {:?}", ret);
         let symbol_info = match ret {
             Ok(symbols) => symbols,
             Err(err) => {
@@ -74,6 +67,7 @@ impl MoveStopLoss {
                 vec![]
             }
         };
+        debug!("symbol_info: {:?}", symbol_info);
 
         // symbols - ignore
         let ignore: Vec<String> = self.config["ignore"]
@@ -82,12 +76,13 @@ impl MoveStopLoss {
             .into_iter()
             .map(|coin| coin.as_str().unwrap().to_owned() + self.config["quote"].as_str().unwrap())
             .collect();
+        info!("ignore: {:?}", ignore);
 
         self.watch = symbol_info
             .into_iter()
-            .filter(|info| !ignore.contains(&info.symbol))
+            .filter(|info| !ignore.contains(&info.symbol.to_lowercase()))
             .collect();
-        info!("watch_list: {:?}", self.watch);
+        debug!("watch_list: {:?}", self.watch);
 
         self.positions = self
             .watch
@@ -100,24 +95,79 @@ impl MoveStopLoss {
             .collect();
     }
 
-    pub fn on_tick(&self) {
-        // get current positions:
-        // get asset balances in set(symbols-config.ignore)
-        //
-        // if asset.balance > 0:
-        //      if asset in positions:
-        //          if asset.balance == positions[asset].amount:
-        //              continue
-        //          else:
-        //              # bought more or sold some, recalculate price, amount
-        //              positions[asset].amount = asset.balance
-        //      else:
-        //          positions[asset] = {price, amount}
+    pub fn refresh_position(&self, pos: &Position) -> APIResult<Position> {
+        let mut coin = pos.symbol.clone();
+        let len = self.config["quote"].as_str().unwrap().len();
+        for _ in (0..len) {
+            coin.pop();
+        }
+        let balance = self.client.get_balance(&coin)?;
+        if balance.free == pos.amount {
+            return Ok(pos.clone());
+        }
+        // get avg_price
+        let orders = self.client.get_history_orders(&pos.symbol)?;
+        let mut amount = 0f64;
+        let mut avg_price = 0f64;
+        for order in &orders {
+            if order.side == "BUY" {
+                avg_price = (amount * avg_price + order.filled * order.price) / (amount + order.filled);
+                amount += order.amount;
+            } else if order.side == "SELL" {
+                avg_price = (amount * avg_price - order.filled * order.price) / (amount - order.filled);
+                amount -= order.amount;
+            }
 
-        // iterate through each position in positions
-        // check move_stoploss
-        //unimplemented!()
-        info!("on_tick");
+            if amount == pos.amount {
+                break;
+            }
+        }
+        let min_value = self.config["min_value"].as_i64().unwrap() as f64;
+        if amount * avg_price < min_value {
+            amount = 0f64;
+            avg_price = 0f64;
+        }
+        Ok(Position {
+            symbol: pos.symbol.clone(),
+            amount: amount,
+            price: avg_price,
+        })
+    }
+
+    pub fn check_move_stoploss(&self, pos: &Position) -> APIResult<Position> {
+        info!("check_move_stoploss");
+        Ok(pos.clone())
+    }
+
+    pub fn on_tick(&mut self) {
+        self.positions = self.positions.iter().map(|pos| {
+            let new_pos = self.refresh_position(&pos);
+            let new_pos = match new_pos {
+                Ok(new_pos) => new_pos,
+                Err(err) => {
+                    warn!("refresh_position error: {:?}", err);
+                    Position {
+                        symbol: pos.symbol.clone(),
+                        amount: 0f64,
+                        price: 0f64,
+                    }
+                }
+            };
+            debug!("old_pos: {:?}, new_pos: {:?}", pos, new_pos);
+
+            let new_pos = self.check_move_stoploss(&new_pos);
+            match new_pos {
+                Ok(new_pos) => new_pos,
+                Err(err) => {
+                    warn!("check_move_stoploss error: {:?}", err);
+                    Position {
+                        symbol: pos.symbol.clone(),
+                        amount: 0f64,
+                        price: 0f64,
+                    }
+                }
+            }
+        }).collect();
     }
 
     pub fn run_forever(&mut self) {
