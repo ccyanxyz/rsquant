@@ -11,6 +11,7 @@ use reqwest::StatusCode;
 use ring::{digest, hmac};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
+use log::{info, warn, debug};
 
 lazy_static! {
     static ref SPOT_URI: HashMap::<&'static str, &'static str> = {
@@ -72,6 +73,7 @@ impl Binance {
         if !request.is_empty() {
             url.push_str(format!("?{}", request).as_str());
         }
+		debug!("url: {:?}", url);
         let response = reqwest::blocking::get(url.as_str())?;
         self.handler(response)
     }

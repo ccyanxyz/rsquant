@@ -140,5 +140,6 @@ fn main() {
     info!("config file: {}", config_path);
 
     let mut robot = MoveStopLoss::new(&config_path);
+	info!("robot: {:?}", robot);
     robot.run_forever();
 }
