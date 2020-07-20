@@ -45,10 +45,10 @@ impl MoveStopLoss {
         let apikey = config["apikey"].as_str().unwrap();
         let secret_key = config["secret_key"].as_str().unwrap();
         let host = config["host"].as_str().unwrap();
-        let min_value = config["min_value"].as_i64().unwrap() as f64;
-        let stoploss = config["stoploss"].as_i64().unwrap() as f64;
-        let start_threshold = config["start_threshold"].as_i64().unwrap() as f64;
-        let withdraw_ratio = config["withdraw_ratio"].as_i64().unwrap() as f64;
+        let min_value = config["min_value"].as_f64().unwrap();
+        let stoploss = config["stoploss"].as_f64().unwrap();
+        let start_threshold = config["start_threshold"].as_f64().unwrap();
+        let withdraw_ratio = config["withdraw_ratio"].as_f64().unwrap();
 
         MoveStopLoss {
             config: config.clone(),
@@ -191,8 +191,9 @@ impl MoveStopLoss {
             pos.price * (1f64 + self.withdraw_ratio * high_ratio),
         );
         info!(
-            "pos: {:?}, profit_ratio: {:?}, stoploss_price: {:?}, withdraw_price: {:?}",
+            "pos: {:?}, now_price: {:?}, profit_ratio: {:?}, stoploss_price: {:?}, withdraw_price: {:?}",
             pos,
+			ticker.bid.price,
             round_to(diff_ratio, 4),
             stoploss_price,
             withdraw_price
@@ -249,7 +250,7 @@ impl MoveStopLoss {
                     }
                 };
                 if new_pos.amount > 0f64 {
-                    info!("old_pos: {:?}, new_pos: {:?}", pos, new_pos);
+                    debug!("old_pos: {:?}, new_pos: {:?}", pos, new_pos);
                 }
                 let ret = self.check_move_stoploss(&new_pos);
                 if let Err(err) = ret {
