@@ -118,7 +118,7 @@ impl MoveStopLoss {
                 amount -= order.amount;
             }
 
-            if amount == pos.amount {
+            if amount == balance.free {
                 break;
             }
         }
