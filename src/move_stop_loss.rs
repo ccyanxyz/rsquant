@@ -142,6 +142,7 @@ impl MoveStopLoss {
     pub fn on_tick(&mut self) {
         self.positions = self.positions.iter().map(|pos| {
             let new_pos = self.refresh_position(&pos);
+			//info!("new_pos: {:?}", new_pos);
             let new_pos = match new_pos {
                 Ok(new_pos) => new_pos,
                 Err(err) => {
@@ -153,8 +154,9 @@ impl MoveStopLoss {
                     }
                 }
             };
-            debug!("old_pos: {:?}, new_pos: {:?}", pos, new_pos);
-
+			if new_pos.amount > 0f64 {
+            	info!("old_pos: {:?}, new_pos: {:?}", pos, new_pos);
+			}
             let new_pos = self.check_move_stoploss(&new_pos);
             match new_pos {
                 Ok(new_pos) => new_pos,
