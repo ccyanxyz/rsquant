@@ -9,6 +9,7 @@
 
 	"min_value": 10,
 
-	"stop_loss": -0.1,
-	"start_move_stoploss": 0.1
+	"stoploss": -0.1,
+	"start_threshold": 0.1,
+	"withdraw_ratio": 0.5
 }

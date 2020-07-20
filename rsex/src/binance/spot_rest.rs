@@ -11,7 +11,7 @@ use reqwest::StatusCode;
 use ring::{digest, hmac};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
-use log::{info, warn, debug};
+use log::debug;
 
 lazy_static! {
     static ref SPOT_URI: HashMap::<&'static str, &'static str> = {

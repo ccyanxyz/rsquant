@@ -6,7 +6,7 @@ use crate::traits::*;
 use log::{info, warn};
 use ws::{Handler, Handshake, Message, Result, Sender};
 
-static WEBSOCKET_URL: &str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
+//static WEBSOCKET_URL: &str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
 
 #[derive(Debug)]
 pub enum WsEvent {
@@ -181,6 +181,7 @@ mod test {
     use super::*;
     use crate::utils::get_timestamp;
 
+    static WEBSOCKET_URL: &str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
     #[test]
     fn test_binancews() {
         env_logger::init();

@@ -3,22 +3,25 @@ extern crate log;
 extern crate rsex;
 extern crate serde_json;
 
-use log::{info, warn, debug};
-use rsex::binance::spot_rest::Binance;
-use rsex::errors::APIResult;
-use rsex::models::SymbolInfo;
-use rsex::traits::SpotRest;
+use log::{debug, info, warn};
+use std::{env, fs, {thread, time}};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::env;
-use std::fs;
-use std::{thread, time};
+
+use rsex::{
+    binance::spot_rest::Binance,
+    errors::APIResult,
+    models::SymbolInfo,
+    traits::SpotRest,
+    constant::{ORDER_TYPE_LIMIT, ORDER_ACTION_SELL},
+};
+use rsquant::utils::{round_same, round_to};
 
 #[derive(Debug, Clone)]
 struct Position {
     symbol: String,
     amount: f64,
     price: f64,
+    high: f64,
 }
 
 #[derive(Debug)]
@@ -27,6 +30,10 @@ struct MoveStopLoss {
     client: Binance,
     watch: Vec<SymbolInfo>,
     positions: Vec<Position>,
+    min_value: f64,
+    stoploss: f64,
+    start_threshold: f64,
+    withdraw_ratio: f64,
 }
 
 impl MoveStopLoss {
@@ -36,12 +43,20 @@ impl MoveStopLoss {
         let apikey = config["apikey"].as_str().unwrap();
         let secret_key = config["secret_key"].as_str().unwrap();
         let host = config["host"].as_str().unwrap();
+        let min_value = config["min_value"].as_i64().unwrap() as f64;
+        let stoploss = config["stoploss"].as_i64().unwrap() as f64;
+        let start_threshold = config["start_threshold"].as_i64().unwrap() as f64;
+        let withdraw_ratio = config["withdraw_ratio"].as_i64().unwrap() as f64;
 
         MoveStopLoss {
             config: config.clone(),
             client: Binance::new(Some(apikey.into()), Some(secret_key.into()), host.into()),
             watch: vec![],
             positions: vec![],
+            min_value: min_value,
+            stoploss: stoploss,
+            start_threshold: start_threshold,
+            withdraw_ratio: withdraw_ratio,
         }
     }
 
@@ -91,6 +106,7 @@ impl MoveStopLoss {
                 symbol: info.symbol.clone(),
                 price: 0f64,
                 amount: 0f64,
+                high: 0f64,
             })
             .collect();
     }
@@ -98,12 +114,27 @@ impl MoveStopLoss {
     pub fn refresh_position(&self, pos: &Position) -> APIResult<Position> {
         let mut coin = pos.symbol.clone();
         let len = self.config["quote"].as_str().unwrap().len();
-        for _ in (0..len) {
+        for _ in 0..len {
             coin.pop();
         }
         let balance = self.client.get_balance(&coin)?;
+        let ticker = self.client.get_ticker(&pos.symbol)?;
         if balance.free == pos.amount {
-            return Ok(pos.clone());
+            if pos.amount * pos.price < self.min_value {
+                return Ok(pos.clone());
+            } else {
+                let high = if ticker.bid.price > pos.high {
+                    ticker.bid.price
+                } else {
+                    pos.high
+                };
+                return Ok(Position {
+                    symbol: pos.symbol.clone(),
+                    price: pos.price,
+                    amount: pos.amount,
+                    high: high,
+                });
+            }
         }
         // get avg_price
         let orders = self.client.get_history_orders(&pos.symbol)?;
@@ -111,10 +142,12 @@ impl MoveStopLoss {
         let mut avg_price = 0f64;
         for order in &orders {
             if order.side == "BUY" {
-                avg_price = (amount * avg_price + order.filled * order.price) / (amount + order.filled);
+                avg_price =
+                    (amount * avg_price + order.filled * order.price) / (amount + order.filled);
                 amount += order.amount;
             } else if order.side == "SELL" {
-                avg_price = (amount * avg_price - order.filled * order.price) / (amount - order.filled);
+                avg_price =
+                    (amount * avg_price - order.filled * order.price) / (amount - order.filled);
                 amount -= order.amount;
             }
 
@@ -122,54 +155,107 @@ impl MoveStopLoss {
                 break;
             }
         }
-        let min_value = self.config["min_value"].as_i64().unwrap() as f64;
-        if amount * avg_price < min_value {
+        // ignore low value position
+        if amount * avg_price < self.min_value {
             amount = 0f64;
             avg_price = 0f64;
         }
+        // get highest price since hold
+        let high = if ticker.bid.price > avg_price {
+            ticker.bid.price
+        } else {
+            avg_price
+        };
         Ok(Position {
             symbol: pos.symbol.clone(),
             amount: amount,
             price: avg_price,
+            high: high,
         })
     }
 
-    pub fn check_move_stoploss(&self, pos: &Position) -> APIResult<Position> {
-        info!("check_move_stoploss");
-        Ok(pos.clone())
+    pub fn check_move_stoploss(&self, pos: &Position) -> APIResult<()> {
+        if pos.amount * pos.price < self.min_value {
+            return Ok(());
+        }
+        // get current price
+        let ticker = self.client.get_ticker(&pos.symbol)?;
+        let diff_ratio = (ticker.bid.price - pos.price) / pos.price;
+        let high_ratio = (pos.high - pos.price) / pos.price;
+
+        let stoploss_price = round_same(ticker.bid.price, pos.price * (1f64 + self.stoploss));
+        let withdraw_price = round_same(
+            ticker.bid.price,
+            pos.price * (1f64 + self.withdraw_ratio * high_ratio),
+        );
+        info!(
+            "pos: {:?}, profit_ratio: {:?}, stoploss_price: {:?}, withdraw_price: {:?}",
+            pos,
+            round_to(diff_ratio, 4),
+            stoploss_price,
+            withdraw_price
+        );
+
+        // stoploss
+        if diff_ratio <= self.stoploss {
+            // sell all
+            let price = round_same(ticker.bid.price, ticker.bid.price * 0.95);
+            let oid = self.client.create_order(
+                &pos.symbol,
+                price,
+                pos.amount,
+                ORDER_ACTION_SELL,
+                ORDER_TYPE_LIMIT,
+            );
+            info!(
+                "{:?} stoploss triggered, sell {:?} at {:?}, order_id: {:?}",
+                pos.symbol, price, pos.amount, oid
+            );
+        }
+        if high_ratio >= self.start_threshold {
+            if diff_ratio <= high_ratio * self.withdraw_ratio {
+                // sell all
+                let price = round_same(ticker.bid.price, ticker.bid.price * 0.95);
+                let oid = self.client.create_order(
+                    &pos.symbol,
+                    price,
+                    pos.amount,
+                    ORDER_ACTION_SELL,
+                    ORDER_TYPE_LIMIT,
+                );
+                info!(
+                    "{:?} profit withdraw triggered, sell {:?} at {:?}, order_id: {:?}",
+                    pos.symbol, price, pos.amount, oid
+                );
+            }
+        }
+        Ok(())
     }
 
     pub fn on_tick(&mut self) {
-        self.positions = self.positions.iter().map(|pos| {
-            let new_pos = self.refresh_position(&pos);
-			//info!("new_pos: {:?}", new_pos);
-            let new_pos = match new_pos {
-                Ok(new_pos) => new_pos,
-                Err(err) => {
-                    warn!("refresh_position error: {:?}", err);
-                    Position {
-                        symbol: pos.symbol.clone(),
-                        amount: 0f64,
-                        price: 0f64,
+        self.positions = self
+            .positions
+            .iter()
+            .map(|pos| {
+                let new_pos = self.refresh_position(&pos);
+                //info!("new_pos: {:?}", new_pos);
+                let new_pos = match new_pos {
+                    Ok(new_pos) => new_pos,
+                    Err(err) => {
+                        warn!("refresh_position error: {:?}", err);
+                        pos.clone()
                     }
+                };
+                if new_pos.amount > 0f64 {
+                    info!("old_pos: {:?}, new_pos: {:?}", pos, new_pos);
                 }
-            };
-			if new_pos.amount > 0f64 {
-            	info!("old_pos: {:?}, new_pos: {:?}", pos, new_pos);
-			}
-            let new_pos = self.check_move_stoploss(&new_pos);
-            match new_pos {
-                Ok(new_pos) => new_pos,
-                Err(err) => {
+                let ret = self.check_move_stoploss(&new_pos);
+                if let Err(err) = ret {
                     warn!("check_move_stoploss error: {:?}", err);
-                    Position {
-                        symbol: pos.symbol.clone(),
-                        amount: 0f64,
-                        price: 0f64,
-                    }
                 }
-            }
-        }).collect();
+                new_pos
+            })
+            .collect();
     }
 
     pub fn run_forever(&mut self) {
@@ -192,6 +278,6 @@ fn main() {
     info!("config file: {}", config_path);
 
     let mut robot = MoveStopLoss::new(&config_path);
-	info!("robot: {:?}", robot);
+    info!("robot: {:?}", robot);
     robot.run_forever();
 }
