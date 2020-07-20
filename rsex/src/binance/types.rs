@@ -92,6 +92,9 @@ pub enum Filters {
     #[serde(rename = "MAX_NUM_ALGO_ORDERS")]
     #[serde(rename_all = "camelCase")]
     MaxNumAlgoOrders { max_num_algo_orders: u16 },
+    #[serde(rename = "MAX_NUM_ALGO_ORDERS")]
+    #[serde(rename_all = "camelCase")]
+    MaxNumOrders { max_num_orders: u16 },
     #[serde(rename = "MARKET_LOT_SIZE")]
     #[serde(rename_all = "camelCase")]
     MarketLotSize {
