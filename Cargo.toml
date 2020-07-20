@@ -11,8 +11,8 @@ name = "tick"
 path = "src/tick.rs"
 
 [[bin]]
-name = "stream"
-path = "src/stream.rs"
+name = "msl"
+path = "src/move_stop_loss.rs"
 
 [dependencies]
 env_logger = "0.7.1"
@@ -30,4 +30,5 @@ ring = "0.13.0-alpha"
 data-encoding = "2.1.2"
 reqwest = { version = "0.10", features = ["blocking", "json"] }
 url = "2.1"
+log = "0.4.8"
 rsex = { path = "./rsex" }

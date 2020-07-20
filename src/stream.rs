@@ -1,8 +1,8 @@
 extern crate rsex;
 
-use std::env;
 use rsex::binance::spot_ws::{BinanceWs, WsEvent};
 use rsex::traits::SpotWs;
+use std::env;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -18,8 +18,8 @@ fn main() {
         match event {
             WsEvent::TickerEvent(e) => {
                 println!("{:?}", e);
-            },
-            _ => {  }
+            }
+            _ => {}
         }
         Ok(())
     };

@@ -11,7 +11,7 @@ extern crate serde_derive;
 extern crate lazy_static;
 
 pub mod constant;
-mod errors;
+pub mod errors;
 pub mod models;
 pub mod traits;
 mod utils;

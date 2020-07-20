@@ -41,7 +41,7 @@ lazy_static! {
     };
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Binance {
     api_key: String,
     secret_key: String,

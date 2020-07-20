@@ -1,0 +1,12 @@
+{
+	"host": "www.binancezh.com",
+	"apikey": "N9QAtGjFuNXDAnvMlidLzfvGargt54mKQuQbzyafO2hg5Hr8YNHV1e2Jfavi44nK",
+	"secret_key": "lCuul7mVApKczbGJBrAgqEIWTWwbQ1BTMBPJyvK19q2BNmlsd5718cAWWByNuY5N",
+
+	"quote": "usdt",
+
+	"ignore":["btc", "eth", "bnb"],
+
+	"stop_loss": -0.1,
+	"start_move_stoploss": 0.1
+}
