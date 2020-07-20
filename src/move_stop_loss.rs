@@ -30,6 +30,7 @@ struct MoveStopLoss {
     client: Binance,
     watch: Vec<SymbolInfo>,
     positions: Vec<Position>,
+    quote: String,
     min_value: f64,
     stoploss: f64,
     start_threshold: f64,
@@ -40,6 +41,7 @@ impl MoveStopLoss {
     pub fn new(config_path: &str) -> Self {
         let file = fs::File::open(config_path).expect("file should open read only");
         let config: Value = serde_json::from_reader(file).expect("file should be proper json");
+        let quote = config["quote"].as_str().unwrap();
         let apikey = config["apikey"].as_str().unwrap();
         let secret_key = config["secret_key"].as_str().unwrap();
         let host = config["host"].as_str().unwrap();
@@ -53,6 +55,7 @@ impl MoveStopLoss {
             client: Binance::new(Some(apikey.into()), Some(secret_key.into()), host.into()),
             watch: vec![],
             positions: vec![],
+            quote: quote.into(),
             min_value: min_value,
             stoploss: stoploss,
             start_threshold: start_threshold,
@@ -61,12 +64,11 @@ impl MoveStopLoss {
     }
 
     pub fn get_symbols(&self) -> APIResult<Vec<SymbolInfo>> {
-        let quote = self.config["quote"].as_str().unwrap();
         let symbol_info = self.client.get_symbols()?;
         debug!("client.get_symbols: {:?}", symbol_info);
         let symbol_info = symbol_info
             .into_iter()
-            .filter(|symbol| symbol.quote.to_lowercase() == quote)
+            .filter(|symbol| symbol.quote.to_lowercase() == self.quote)
             .collect();
         Ok(symbol_info)
     }
@@ -89,7 +91,7 @@ impl MoveStopLoss {
             .as_array()
             .unwrap()
             .into_iter()
-            .map(|coin| coin.as_str().unwrap().to_owned() + self.config["quote"].as_str().unwrap())
+            .map(|coin| coin.as_str().unwrap().to_owned() + &self.quote)
             .collect();
         info!("ignore: {:?}", ignore);
 
@@ -113,7 +115,7 @@ impl MoveStopLoss {
 
     pub fn refresh_position(&self, pos: &Position) -> APIResult<Position> {
         let mut coin = pos.symbol.clone();
-        let len = self.config["quote"].as_str().unwrap().len();
+        let len = self.quote.len();
         for _ in 0..len {
             coin.pop();
         }
