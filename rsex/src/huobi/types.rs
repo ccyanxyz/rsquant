@@ -219,13 +219,18 @@ impl From<RawOrderInfo> for Order {
             "submitted" => ORDER_STATUS_SUBMITTED,
             _ => ORDER_STATUS_FAILED,
         };
+        let side = if item.ty.startswith("sell") {
+            "SELL"
+        } else {
+            "BUY"
+        };
+
         Order {
             symbol: item.symbol,
             order_id: item.id.to_string(),
             amount: item.amount.parse::<f64>().unwrap_or(0.0),
             price: item.price.parse::<f64>().unwrap_or(0.0),
-            //FIXME: check order.ty in {"SELL", "BUY"}
-            side: item.ty.to_uppercase(),
+            side: side,
             filled: item.price.parse::<f64>().unwrap_or(0.0),
             status,
         }
