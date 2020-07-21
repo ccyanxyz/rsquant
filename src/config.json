@@ -3,6 +3,8 @@
 	"apikey": "YnbYI9ucqD0ZTeqeSItetzJaTf5IQ6rx9OXXkkDjJJiWGVpUjgCK4dok5ppXinKK",
 	"secret_key": "BeMvtAFRBFztSmb70NKeYne5xrjYbEfLg7wH6c7wMoppSWckjCoBcDQkg6hlTedM",
 
+	"strategy": "move_stoploss",
+
 	"quote": "usdt",
 
 	"ignore":["btc", "eth", "bnb"],

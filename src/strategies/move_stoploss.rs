@@ -1,10 +1,5 @@
-extern crate env_logger;
-extern crate log;
-extern crate rsex;
-extern crate serde_json;
-
 use log::{debug, info, warn};
-use std::{env, fs, {thread, time}};
+use std::{fs, {thread, time}};
 use serde_json::Value;
 
 use rsex::{
@@ -14,7 +9,11 @@ use rsex::{
     traits::SpotRest,
     constant::{ORDER_TYPE_LIMIT, ORDER_ACTION_SELL},
 };
-use rsquant::utils::{round_same, round_to};
+
+use crate::{
+    traits::Strategy,
+    utils::{round_same, round_to},
+};
 
 #[derive(Debug, Clone)]
 struct Position {
@@ -25,7 +24,7 @@ struct Position {
 }
 
 #[derive(Debug)]
-struct MoveStopLoss {
+pub struct MoveStopLoss {
     config: Value,
     client: Binance,
     watch: Vec<SymbolInfo>,
@@ -40,34 +39,7 @@ struct MoveStopLoss {
 }
 
 impl MoveStopLoss {
-    pub fn new(config_path: &str) -> Self {
-        let file = fs::File::open(config_path).expect("file should open read only");
-        let config: Value = serde_json::from_reader(file).expect("file should be proper json");
-        let quote = config["quote"].as_str().unwrap();
-        let apikey = config["apikey"].as_str().unwrap();
-        let secret_key = config["secret_key"].as_str().unwrap();
-        let host = config["host"].as_str().unwrap();
-        let min_value = config["min_value"].as_f64().unwrap();
-        let stoploss = config["stoploss"].as_f64().unwrap();
-        let start_threshold = config["start_threshold"].as_f64().unwrap();
-        let withdraw_ratio = config["withdraw_ratio"].as_f64().unwrap();
-
-        MoveStopLoss {
-            config: config.clone(),
-            client: Binance::new(Some(apikey.into()), Some(secret_key.into()), host.into()),
-            watch: vec![],
-            positions: vec![],
-            balances: vec![],
-
-            quote: quote.into(),
-            min_value: min_value,
-            stoploss: stoploss,
-            start_threshold: start_threshold,
-            withdraw_ratio: withdraw_ratio,
-        }
-    }
-
-    pub fn get_symbols(&self) -> APIResult<Vec<SymbolInfo>> {
+    fn get_symbols(&self) -> APIResult<Vec<SymbolInfo>> {
         let symbol_info = self.client.get_symbols()?;
         debug!("client.get_symbols: {:?}", symbol_info);
         let symbol_info = symbol_info
@@ -77,7 +49,7 @@ impl MoveStopLoss {
         Ok(symbol_info)
     }
 
-    pub fn init(&mut self) {
+    fn init(&mut self) {
         // set watch_list
         let ret = self.get_symbols();
         debug!("get_symbols: {:?}", ret);
@@ -117,7 +89,7 @@ impl MoveStopLoss {
             .collect();
     }
 
-    pub fn refresh_position(&self, pos: &Position) -> APIResult<Position> {
+    fn refresh_position(&self, pos: &Position) -> APIResult<Position> {
         let mut coin = pos.symbol.clone();
         let len = self.quote.len();
         for _ in 0..len {
@@ -188,7 +160,7 @@ impl MoveStopLoss {
         })
     }
 
-    pub fn check_move_stoploss(&self, pos: &Position) -> APIResult<()> {
+    fn check_move_stoploss(&self, pos: &Position) -> APIResult<()> {
         if pos.amount * pos.price < self.min_value {
             return Ok(());
         }
@@ -247,7 +219,7 @@ impl MoveStopLoss {
         Ok(())
     }
 
-    pub fn on_tick(&mut self) {
+    fn on_tick(&mut self) {
         let ret = self.client.get_all_balances();
         if let Ok(balances) = ret {
             self.balances = balances;
@@ -279,27 +251,65 @@ impl MoveStopLoss {
             })
             .collect();
     }
+}
 
-    pub fn run_forever(&mut self) {
+impl Strategy for MoveStopLoss {
+    fn new(config_path: &str) -> Box<dyn Strategy> {
+        let file = fs::File::open(config_path).expect("file should open read only");
+        let config: Value = serde_json::from_reader(file).expect("file should be proper json");
+        let quote = config["quote"].as_str().unwrap();
+        let apikey = config["apikey"].as_str().unwrap();
+        let secret_key = config["secret_key"].as_str().unwrap();
+        let host = config["host"].as_str().unwrap();
+        let min_value = config["min_value"].as_f64().unwrap();
+        let stoploss = config["stoploss"].as_f64().unwrap();
+        let start_threshold = config["start_threshold"].as_f64().unwrap();
+        let withdraw_ratio = config["withdraw_ratio"].as_f64().unwrap();
+
+        Box::new(MoveStopLoss {
+            config: config.clone(),
+            client: Binance::new(Some(apikey.into()), Some(secret_key.into()), host.into()),
+            watch: vec![],
+            positions: vec![],
+            balances: vec![],
+
+            quote: quote.into(),
+            min_value: min_value,
+            stoploss: stoploss,
+            start_threshold: start_threshold,
+            withdraw_ratio: withdraw_ratio,
+        })
+    }
+
+    fn run_forever(&mut self) {
         self.init();
         loop {
             self.on_tick();
             thread::sleep(time::Duration::from_secs(60));
         }
     }
+
+    fn name(&self) -> String {
+        "move_stoploss".into()
+    }
+
+    fn stringify(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
-fn main() {
-    env_logger::init();
-    let args: Vec<String> = env::args().collect();
-    let config_path = if args.len() > 1 {
-        &args[1]
-    } else {
-        "./config.json"
-    };
-    info!("config file: {}", config_path);
+#[cfg(test)]
+mod test {
+    use super::*;
 
-    let mut robot = MoveStopLoss::new(&config_path);
-    info!("robot: {:?}", robot);
-    robot.run_forever();
+    #[test]
+    fn test_move_stoploss() {
+        env_logger::init();
+        let config_path = "./config.json";
+        info!("config file: {}", config_path);
+
+        let mut robot = MoveStopLoss::new(&config_path);
+        info!("robot: {:?}", robot);
+        robot.run_forever();
+    }
 }

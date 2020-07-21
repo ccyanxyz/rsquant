@@ -7,12 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[bin]]
-name = "tick"
-path = "src/tick.rs"
-
-[[bin]]
-name = "msl"
-path = "src/move_stop_loss.rs"
+name = "rsquant"
+path = "src/main.rs"
 
 [dependencies]
 env_logger = "0.7.1"
