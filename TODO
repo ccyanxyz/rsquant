@@ -1,9 +1,4 @@
-rest api重构：使用SpotRest trait
-ws api重构：使用SpotWs trait, sub_kline(..., callback: Option<Box<dyn FnMut(WsEvent) -> Result<()> + 'a>>)
-
 future rest/ws api for binance/huobi
-
-FIXME
 
 1.交易所api对接 spot future swap
 2.策略编写框架 rest策略 ws策略
@@ -12,5 +7,6 @@ FIXME
 
 
 策略：
-1.移动止盈止损
+/*1.移动止盈止损*/
 2.海龟策略
+3.动态平衡
