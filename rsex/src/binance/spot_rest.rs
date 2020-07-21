@@ -192,6 +192,8 @@ impl Binance {
                 let body = resp.text()?;
                 Ok(body)
             }
+            StatusCode::TOO_MANY_REQUESTS => Err(Box::new(ExError::RateLimitExceeded("rate limit exceeded: 429".into()))),
+            StatusCode::IM_A_TEAPOT => Err(Box::new(ExError::IpBanned("ip banned: 418".into()))),
             s => Err(Box::new(ExError::ApiError(format!("response: {:?}", s)))),
         }
     }
