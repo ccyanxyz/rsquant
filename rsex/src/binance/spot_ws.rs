@@ -179,7 +179,6 @@ impl<'a> Handler for BinanceWs<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::utils::get_timestamp;
 
     static WEBSOCKET_URL: &str = "wss://stream.binance.com:9443/ws/btcusdt@depth20";
     #[test]

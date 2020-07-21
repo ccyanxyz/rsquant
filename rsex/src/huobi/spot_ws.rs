@@ -170,7 +170,7 @@ mod test {
     use super::*;
     use crate::utils::get_timestamp;
 
-    //#[test]
+    #[test]
     fn test_huobiws() {
         env_logger::init();
 

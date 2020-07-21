@@ -304,6 +304,46 @@ impl Binance {
         })
     }
 
+    pub fn get_all_balance(&self) -> APIResult<Vec<Balance>> {
+        let uri = if self.is_margin {
+            MARGIN_URI.get("get_balance").unwrap()
+        } else {
+            SPOT_URI.get("get_balance").unwrap()
+        };
+        let params: BTreeMap<String, String> = BTreeMap::new();
+        let req = self.build_signed_request(params)?;
+        let ret = self.get_signed(uri, &req)?;
+        let val: Value = serde_json::from_str(&ret)?;
+
+        let idx = if self.is_margin {
+            "userAssets"
+        } else {
+            "balances"
+        };
+        let balances = val[idx]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|balance| {
+                Balance {
+                    asset: balance["asset"].as_str().unwrap().into(),
+                    free: balance["free"]
+                        .as_str()
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap_or(0.0),
+                    locked: balance["locked"]
+                        .as_str()
+                        .unwrap()
+                        .parse::<f64>()
+                        .unwrap_or(0.0),
+                }
+            })
+            .collect::<Vec<Balance>>();
+
+        Ok(balances)
+    }
+
     pub fn create_order_raw(
         &self,
         symbol: &str,
