@@ -10,7 +10,7 @@ use serde_json::Value;
 use rsex::{
     binance::spot_rest::Binance,
     errors::APIResult,
-    models::SymbolInfo,
+    models::{SymbolInfo, Balance},
     traits::SpotRest,
     constant::{ORDER_TYPE_LIMIT, ORDER_ACTION_SELL},
 };
@@ -30,6 +30,8 @@ struct MoveStopLoss {
     client: Binance,
     watch: Vec<SymbolInfo>,
     positions: Vec<Position>,
+    balances: Vec<Balance>,
+
     quote: String,
     min_value: f64,
     stoploss: f64,
@@ -55,6 +57,8 @@ impl MoveStopLoss {
             client: Binance::new(Some(apikey.into()), Some(secret_key.into()), host.into()),
             watch: vec![],
             positions: vec![],
+            balances: vec![],
+
             quote: quote.into(),
             min_value: min_value,
             stoploss: stoploss,
@@ -119,8 +123,16 @@ impl MoveStopLoss {
         for _ in 0..len {
             coin.pop();
         }
-        let balance = self.client.get_balance(&coin)?;
+        //let balance = self.client.get_balance(&coin)?;
         let ticker = self.client.get_ticker(&pos.symbol)?;
+        let ret = self.balances.iter().find(|balance| balance.asset == coin);
+        let balance = match ret {
+            Some(balance) => balance,
+            None => {
+                warn!("{:?} not found in self.balances", coin);
+                return Ok(pos.clone());
+            }
+        };
         if balance.free == pos.amount {
             if pos.amount * pos.price < self.min_value {
                 return Ok(pos.clone());
@@ -236,6 +248,13 @@ impl MoveStopLoss {
     }
 
     pub fn on_tick(&mut self) {
+        let ret = self.client.get_all_balances();
+        if let Ok(balances) = ret {
+            self.balances = balances;
+        } else {
+            warn!("get_all_balances error: {:?}", ret);
+            return;
+        }
         self.positions = self
             .positions
             .iter()
@@ -265,7 +284,7 @@ impl MoveStopLoss {
         self.init();
         loop {
             self.on_tick();
-            thread::sleep(time::Duration::from_secs(3));
+            thread::sleep(time::Duration::from_secs(60));
         }
     }
 }

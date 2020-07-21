@@ -69,6 +69,22 @@ pub struct Ticker {
     pub ask: Ask,
 }
 
+impl Ticker {
+    pub fn new() -> Self {
+        Ticker {
+            timestamp: 0u64,
+            bid: Bid {
+                price: 0f64,
+                amount: 0f64,
+            },
+            ask: Ask {
+                price: 0f64,
+                amount: 0f64,
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Kline {
     pub timestamp: u64,

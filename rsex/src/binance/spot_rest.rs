@@ -304,7 +304,7 @@ impl Binance {
         })
     }
 
-    pub fn get_all_balance(&self) -> APIResult<Vec<Balance>> {
+    pub fn get_all_balances(&self) -> APIResult<Vec<Balance>> {
         let uri = if self.is_margin {
             MARGIN_URI.get("get_balance").unwrap()
         } else {
