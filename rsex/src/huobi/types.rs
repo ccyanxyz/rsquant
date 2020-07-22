@@ -219,7 +219,7 @@ impl From<RawOrderInfo> for Order {
             "submitted" => ORDER_STATUS_SUBMITTED,
             _ => ORDER_STATUS_FAILED,
         };
-        let side = if item.ty.startswith("sell") {
+        let side = if item.ty.starts_with("sell") {
             "SELL"
         } else {
             "BUY"
@@ -230,7 +230,7 @@ impl From<RawOrderInfo> for Order {
             order_id: item.id.to_string(),
             amount: item.amount.parse::<f64>().unwrap_or(0.0),
             price: item.price.parse::<f64>().unwrap_or(0.0),
-            side: side,
+            side: side.into(),
             filled: item.price.parse::<f64>().unwrap_or(0.0),
             status,
         }

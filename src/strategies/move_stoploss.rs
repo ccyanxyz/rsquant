@@ -24,12 +24,23 @@ struct Position {
 }
 
 #[derive(Debug)]
+struct Record {
+    symbol: String,
+    buy_price: f64,
+    sell_price: f64,
+    amount: f64,
+    profit: f64,
+}
+
+#[derive(Debug)]
 pub struct MoveStopLoss {
     config: Value,
     client: Binance,
     watch: Vec<SymbolInfo>,
     positions: Vec<Position>,
     balances: Vec<Balance>,
+    history: Vec<Record>,
+    total_profit: f64,
 
     quote: String,
     min_value: f64,
@@ -122,6 +133,14 @@ impl MoveStopLoss {
                 });
             }
         }
+        if balance.free * ticker.bid.price < self.min_value {
+            return Ok(Position {
+                symbol: pos.symbol.clone(),
+                price: 0f64,
+                amount: balance.free,
+                high: 0f64,
+            });
+        }
         // get avg_price
         let orders = self.client.get_history_orders(&pos.symbol)?;
         let mut amount = 0f64;
@@ -160,7 +179,7 @@ impl MoveStopLoss {
         })
     }
 
-    fn check_move_stoploss(&self, pos: &Position) -> APIResult<()> {
+    fn check_move_stoploss(&mut self, pos: &Position) -> APIResult<()> {
         if pos.amount * pos.price < self.min_value {
             return Ok(());
         }
@@ -182,6 +201,9 @@ impl MoveStopLoss {
             stoploss_price,
             withdraw_price
         );
+        info!("total_profit: {:?}, history: {:?}", self.total_profit, self.history);
+
+        let profit = round_to((ticker.bid.price - pos.price) * pos.amount, 2);
 
         // stoploss
         if diff_ratio <= self.stoploss {
@@ -198,6 +220,14 @@ impl MoveStopLoss {
                 "{:?} stoploss triggered, sell {:?} at {:?}, order_id: {:?}",
                 pos.symbol, price, pos.amount, oid
             );
+            self.history.push(Record {
+                symbol: pos.symbol.clone(),
+                buy_price: pos.price,
+                sell_price: ticker.bid.price,
+                amount: pos.amount,
+                profit: profit,
+            });
+            self.total_profit += profit;
         }
         if high_ratio >= self.start_threshold {
             if diff_ratio <= high_ratio * self.withdraw_ratio {
@@ -214,6 +244,14 @@ impl MoveStopLoss {
                     "{:?} profit withdraw triggered, sell {:?} at {:?}, order_id: {:?}",
                     pos.symbol, price, pos.amount, oid
                 );
+                self.history.push(Record {
+                    symbol: pos.symbol.clone(),
+                    buy_price: pos.price,
+                    sell_price: ticker.bid.price,
+                    amount: pos.amount,
+                    profit: profit,
+                });
+                self.total_profit += profit;
             }
         }
         Ok(())
@@ -228,7 +266,7 @@ impl MoveStopLoss {
             return;
         }
         self.positions = self
-            .positions
+            .positions.clone()
             .iter()
             .map(|pos| {
                 let new_pos = self.refresh_position(&pos);
@@ -272,7 +310,9 @@ impl Strategy for MoveStopLoss {
             watch: vec![],
             positions: vec![],
             balances: vec![],
+            history: vec![],
 
+            total_profit: 0f64,
             quote: quote.into(),
             min_value: min_value,
             stoploss: stoploss,
