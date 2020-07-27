@@ -1,15 +1,15 @@
 use log::{debug, info, warn};
-use std::{fs, {thread, time}};
 use serde_json::Value;
-
+use std::{
+    fs, {thread, time},
+};
 use rsex::{
     binance::spot_rest::Binance,
+    constant::{ORDER_ACTION_SELL, ORDER_TYPE_LIMIT},
     errors::APIResult,
-    models::{SymbolInfo, Balance},
+    models::{Balance, SymbolInfo},
     traits::SpotRest,
-    constant::{ORDER_TYPE_LIMIT, ORDER_ACTION_SELL},
 };
-
 use crate::{
     traits::Strategy,
     utils::{round_same, round_to},
@@ -184,7 +184,9 @@ impl MoveStopLoss {
             return self.withdraw_ratio;
         }
         // y = (10*x-10*a)/10*x
-        return (round_to(profit_ratio * 10f64, 0) - round_to(self.start_threshold * 10f64, 0) + 1f64) / round_to(profit_ratio * 10f64, 0); 
+        return (round_to(profit_ratio * 10f64, 0) - round_to(self.start_threshold * 10f64, 0)
+            + 1f64)
+            / round_to(profit_ratio * 10f64, 0);
     }
 
     fn check_move_stoploss(&mut self, pos: &Position) -> APIResult<()> {
@@ -212,7 +214,10 @@ impl MoveStopLoss {
             withdraw_ratio,
             withdraw_price
         );
-        info!("total_profit: {:?}, history: {:?}", self.total_profit, self.history);
+        info!(
+            "total_profit: {:?}, history: {:?}",
+            self.total_profit, self.history
+        );
 
         let profit = round_to((ticker.bid.price - pos.price) * pos.amount, 2);
 
@@ -277,7 +282,8 @@ impl MoveStopLoss {
             return;
         }
         self.positions = self
-            .positions.clone()
+            .positions
+            .clone()
             .iter()
             .map(|pos| {
                 let new_pos = self.refresh_position(&pos);

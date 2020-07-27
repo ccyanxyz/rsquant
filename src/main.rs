@@ -1,10 +1,10 @@
 use log::{info, warn};
-use std::{env, fs};
-use serde_json::Value;
 use rsquant::{
+    strategies::{Dummy, MoveStopLoss},
     traits::Strategy,
-    strategies::{MoveStopLoss, Dummy},
 };
+use serde_json::Value;
+use std::{env, fs};
 
 fn construct_robot(config_path: &str) -> Box<dyn Strategy> {
     let file = fs::File::open(config_path).expect("file should open read only");
@@ -12,12 +12,8 @@ fn construct_robot(config_path: &str) -> Box<dyn Strategy> {
     let strategy = config["strategy"].as_str().unwrap();
 
     match strategy {
-        "move_stoploss" => {
-            MoveStopLoss::new(config_path)
-        },
-        _ => {
-            Dummy::new(config_path)
-        }
+        "move_stoploss" => MoveStopLoss::new(config_path),
+        _ => Dummy::new(config_path),
     }
 }
 
