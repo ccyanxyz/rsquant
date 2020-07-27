@@ -24,12 +24,18 @@ struct Position {
 }
 
 #[derive(Debug)]
-pub struct Turtle {
+pub struct MoveStopLoss {
     config: Value,
     client: Binance,
     watch: Vec<SymbolInfo>,
     positions: Vec<Position>,
     balances: Vec<Balance>,
+
+    quote: String,
+    min_value: f64,
+    stoploss: f64,
+    start_threshold: f64,
+    withdraw_ratio: f64,
 }
 
 impl MoveStopLoss {

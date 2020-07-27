@@ -27,4 +27,4 @@ data-encoding = "2.1.2"
 reqwest = { version = "0.10", features = ["blocking", "json"] }
 url = "2.1"
 log = "0.4.8"
-rsex = { path = "./rsex" }
+rsex = { path = "../rsex" }

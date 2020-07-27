@@ -179,6 +179,14 @@ impl MoveStopLoss {
         })
     }
 
+    fn calc_withdraw_ratio(&self, profit_ratio: f64) -> f64 {
+        if profit_ratio < self.start_threshold {
+            return self.withdraw_ratio;
+        }
+        // y = (10*x-10*a)/10*x
+        return (round_to(profit_ratio * 10f64, 0) - round_to(self.start_threshold * 10f64, 0) + 1f64) / round_to(profit_ratio * 10f64, 0); 
+    }
+
     fn check_move_stoploss(&mut self, pos: &Position) -> APIResult<()> {
         if pos.amount * pos.price < self.min_value {
             return Ok(());
@@ -189,16 +197,19 @@ impl MoveStopLoss {
         let high_ratio = (pos.high - pos.price) / pos.price;
 
         let stoploss_price = round_same(ticker.bid.price, pos.price * (1f64 + self.stoploss));
+        // calc withdraw ratio
+        let withdraw_ratio = self.calc_withdraw_ratio(diff_ratio);
         let withdraw_price = round_same(
             ticker.bid.price,
-            pos.price * (1f64 + self.withdraw_ratio * high_ratio),
+            pos.price * (1f64 + withdraw_ratio * high_ratio),
         );
         info!(
-            "pos: {:?}, now_price: {:?}, profit_ratio: {:?}, stoploss_price: {:?}, withdraw_price: {:?}",
+            "pos: {:?}, now_price: {:?}, profit_ratio: {:?}, stoploss_price: {:?}, withdraw_ratio: {:?}, withdraw_price: {:?}",
             pos,
 			ticker.bid.price,
             round_to(diff_ratio, 4),
             stoploss_price,
+            withdraw_ratio,
             withdraw_price
         );
         info!("total_profit: {:?}, history: {:?}", self.total_profit, self.history);
@@ -230,7 +241,7 @@ impl MoveStopLoss {
             self.total_profit += profit;
         }
         if high_ratio >= self.start_threshold {
-            if diff_ratio <= high_ratio * self.withdraw_ratio {
+            if diff_ratio <= high_ratio * withdraw_ratio {
                 // sell all
                 let price = round_same(ticker.bid.price, ticker.bid.price * 0.95);
                 let oid = self.client.create_order(
