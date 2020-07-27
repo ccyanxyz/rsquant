@@ -183,7 +183,7 @@ impl MoveStopLoss {
         if profit_ratio < self.start_threshold {
             return self.withdraw_ratio;
         }
-        // y = (10*x-10*a)/10*x
+        // y = (10*x-10*a+1)/10*x
         return (round_to(profit_ratio * 10f64, 0) - round_to(self.start_threshold * 10f64, 0)
             + 1f64)
             / round_to(profit_ratio * 10f64, 0);
