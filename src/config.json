@@ -10,7 +10,7 @@
 	"ignore":["btc", "eth", "bnb"],
 
 	"min_value": 10,
-	"stoploss": -0.1,
-	"start_threshold": 0.1,
+	"stoploss": -0.05,
+	"start_threshold": 0.3,
 	"withdraw_ratio": 0.5
 }
